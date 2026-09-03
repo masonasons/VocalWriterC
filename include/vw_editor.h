@@ -149,6 +149,38 @@ const char *vw_ed_phoneme_name(int code);
    NULL before a program change. */
 const char *vw_ed_voice_name(vw_editor *e);
 
+/* GMBank.rsrc, as the whole fork: the wavetables the voices with instrument
+   names are built on -- "special synthetic models of musical instruments with
+   dynamic vocal tracts", as the manual puts it, and they sing lyrics like any
+   other voice. Without it only the voices that need no wavetable can be
+   selected; with it, all of them. Returns 0 or an error. */
+int vw_ed_bank(vw_editor *e, const unsigned char *fork, size_t len);
+
+/* GMBank.rsrc, as the whole fork: the wavetables the voices with instrument
+   names are built on -- "special synthetic models of musical instruments with
+   dynamic vocal tracts", as the manual puts it, and they sing lyrics like any
+   other voice. Without it only the voices that need no wavetable can be
+   selected; with it, all of them. Returns 0 or an error. */
+int vw_ed_bank(vw_editor *e, const unsigned char *fork, size_t len);
+
+/* How many voices the bank holds, and what each is called.
+
+   A program change reaches a voice through the bank's own 128-entry map, and
+   that map does not name every voice it holds -- five of GMSpeech's sit in the
+   bank with nothing pointing at them. These take the voice's own place in the
+   bank instead, so all of them can be sung. */
+int vw_ed_voice_count(vw_editor *e);
+
+/* Which voice a program change would pick, for reading a song that was
+   written down as program numbers. -1 if there is no such program. */
+int vw_ed_program_voice(vw_editor *e, int program);
+const char *vw_ed_voice_name_at(vw_editor *e, int index);
+
+/* Sing with the voice at that place in the bank: what PgmChange_Speech does
+   once it has looked the program up. Returns 0, or -1 if there is no such
+   voice. */
+int vw_ed_voice(vw_editor *e, int index);
+
 #ifdef __cplusplus
 }
 #endif

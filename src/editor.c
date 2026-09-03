@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "vw_engine.h"
+#include "vocalwriter.h"
 #include "vw_editor.h"
 
 #define OUT_SAMPLES (1 << 21)      /* what ppc/synth.py allocates */
@@ -31,6 +32,8 @@ struct vw_editor {
     char voiceName[17];
     int16_t lexRef;
     int reverbMemory;
+    vw_bank bank;
+    int hasBank;
 };
 
 /* InitSharedTables carves up one set of tables from the `ttvi` resource and
@@ -80,6 +83,13 @@ vw_editor *vw_ed_open(const unsigned char *rsrc, size_t rsrc_len,
        there is nothing there. */
     e->xx->Time_Tbl = e->blank_time_tbl;
     e->xx->Freq_Tbl = g_Freq_Tbl;
+    /* The oscillator tables. A voice built on a wavetable rather than on the
+       glottal source -- which is most of the bank, the ones with instrument
+       names -- reads these while it is being selected, and reads them through
+       the music globals rather than the speech ones. Synth_Startup wires
+       them; here they are wired by hand, as the rest are. */
+    e->xx->OscModeTbl = g_OscModeTbl;
+    e->xx->Oct_Tbl = g_Oct_Tbl;
     if (e->xx->GMVoicePtr == NULL || e->xx->sampleBuffer == NULL) {
         vw_ed_close(e);
         return NULL;
@@ -114,6 +124,8 @@ void vw_ed_close(vw_editor *e)
         return;
     if (e->lexRef)
         vw_fs_close(e->lexRef);
+    if (e->hasBank)
+        vw_bank_free(&e->bank);
     if (e->xx != NULL) {
         free(e->xx->sampleBuffer);
         free(e->xx);
@@ -373,6 +385,82 @@ const char *vw_ed_phoneme_name(int code)
 }
 
 /* -- the voice -------------------------------------------------------------- */
+
+static const char *name_of(vw_editor *e, voiceDataPtr rec)
+{
+    int n;
+    if (rec == NULL)
+        return NULL;
+    n = rec->voiceName[0];                  /* a Pascal string */
+    if (n > 15)
+        n = 15;
+    memcpy(e->voiceName, rec->voiceName + 1, (size_t)n);
+    e->voiceName[n] = 0;
+    return e->voiceName;
+}
+
+int vw_ed_bank(vw_editor *e, const unsigned char *fork, size_t len)
+{
+    unsigned char *mwav, *mdef;
+    size_t mwav_len, mdef_len;
+    int rc;
+
+    if (e->hasBank)
+        return 0;
+    mwav = vw_resource(fork, len, "mwav", 1, &mwav_len);
+    mdef = vw_resource(fork, len, "mdef", 1, &mdef_len);
+    if (mwav == NULL || mdef == NULL) {
+        free(mwav);
+        free(mdef);
+        return -1;
+    }
+    rc = vw_bank_load(&e->bank, mwav, mwav_len, mdef, mdef_len);
+    free(mwav);
+    free(mdef);
+    if (rc)
+        return rc;
+    /* Only the wavetables. `vw_bank_install` would also hand every
+       instrument definition to Synth_SetInstrument, and those go into tables
+       that Synth_Startup allocates -- the sequencer's, for playing instrument
+       tracks. An editor sings, and what singing needs is the wave data the
+       voices' oscillators read. */
+    rc = SetWaveBank(e->xx, (Ptr)e->bank.waveTable, e->bank.pcmType);
+    if (rc) {
+        vw_bank_free(&e->bank);
+        return rc;
+    }
+    e->hasBank = 1;
+    return 0;
+}
+
+int vw_ed_voice_count(vw_editor *e)
+{
+    return e->voiceCount;
+}
+
+int vw_ed_program_voice(vw_editor *e, int program)
+{
+    if (e->zz->GMVoiceMap == NULL || program < 0 || program > 127)
+        return -1;
+    return e->zz->GMVoiceMap[program];
+}
+
+const char *vw_ed_voice_name_at(vw_editor *e, int index)
+{
+    if (e->zz->GMVoiceData == NULL || index < 0 || index >= e->voiceCount)
+        return NULL;
+    return name_of(e, e->zz->GMVoiceData[index]);
+}
+
+int vw_ed_voice(vw_editor *e, int index)
+{
+    if (e->zz->GMVoiceData == NULL || index < 0 || index >= e->voiceCount)
+        return -1;
+    /* what PgmChange_Speech does after the map lookup */
+    e->zz->voiceRef = (int16_t)index;
+    NewVoice(e->zz, (void *)e->zz->GMVoiceData[index]);
+    return 0;
+}
 
 const char *vw_ed_voice_name(vw_editor *e)
 {
