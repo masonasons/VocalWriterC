@@ -124,7 +124,12 @@ class Guest(object):
                 frames = int(parts[1]) if len(parts) > 1 else 0
                 m.mem.w32(vw.g + 0x3107c, frames if frames > 0 else m.mem.r32(vw.ctx + CTX_OUT_POS) // 440)
                 if m.mem.r16(vw.g + 0x67bc):                  # reverbON
-                    m.call('Reverberator_Process', vw.g, 0)
+                    # eight delay lines over a whole song is more than the
+                    # interpreter's default step limit
+                    m.cpu.r[1] = image.STACK_TOP - 0x1000
+                    m.mem.w32(m.cpu.r[1], image.STACK_TOP)
+                    m.cpu.r[3], m.cpu.r[4] = vw.g, 0
+                    m.cpu.call(m.funcs['Reverberator_Process'], max_steps=4000000000)
             elif cmd == 'reverbdump':
                 self.rvb = []
                 for i in range(8):

@@ -367,28 +367,41 @@ class Lifter(object):
 
     # -- blocks -------------------------------------------------------------
 
+    def _is_data(self, addr):
+        return any(a <= addr < b for a, b in self.data_ranges)
+
     def _blocks(self):
         targets = set()
         for i in self.ins:
+            if self._is_data(i.addr):
+                continue
             if i.op in ('b', 'bc') and not i.lk:
                 targets.add(i.target)
         targets.add(self.epilogue)
+        for a, b in self.data_ranges:
+            targets.add(b)
+        targets |= self.switch_targets
         starts = sorted(t for t in targets if self.body_start <= t < self.end)
         starts = sorted(set(starts) | {self.body_start})
         blocks = []
         for k, s in enumerate(starts):
             e = starts[k + 1] if k + 1 < len(starts) else self.end
-            blocks.append([i for i in self.ins if s <= i.addr < e])
+            blocks.append([i for i in self.ins if s <= i.addr < e and not self._is_data(i.addr)])
         return [b for b in blocks if b]
 
     # -- symbolic execution -------------------------------------------------
 
     def lift(self):
+        self.data_ranges = set()
+        self.switch_targets = set()
+        self.last_bound = None
         blocks = self._blocks()
         self._find_return_block(blocks)
-        for _round in range(4):
+        for _round in range(6):
             self.stmts = []
             self.unknown_reads = set()
+            self.last_bound = None
+            ndata = len(self.data_ranges)
             for blk in blocks:
                 if blk[0].addr >= self.epilogue:
                     self._emit(blk[0].addr, Stmt('label', target=blk[0].addr))
@@ -397,6 +410,10 @@ class Lifter(object):
                 self._emit(blk[0].addr, Stmt('label', target=blk[0].addr))
                 self._run_block(blk)
             new = self.unknown_reads - self.materialise
+            if len(self.data_ranges) != ndata:
+                blocks = self._blocks()          # a jump table was found
+                self.warnings = []
+                continue
             if not new:
                 break
             self.materialise |= new
@@ -797,6 +814,13 @@ class Lifter(object):
     def _static_lvalue(self, addr, terms, size, kind):
         sec = self.bin.section_of(addr)
         tg = self._fallback_tag(size, kind)
+        if terms and all(sc == size for _, sc in terms) and sec is not None \
+                and sec[1] == '__text':
+            # a jump table inside the code, indexed by a case number
+            idx = terms[0][0]
+            for ie, _ in terms[1:]:
+                idx = self._int_add(idx, ie)
+            return Expr('tableload', 'i32', a=const(addr, 'u32'), b=idx, val=size)
         if sec is not None and sec[1] == '__nl_symbol_ptr' and size == 4:
             target, nm = self.bin.nl_pointer(addr)
             g = self._global(nm, target)
@@ -1190,6 +1214,8 @@ class Lifter(object):
         if op in ('cmpli', 'cmpl'):
             y = const(i.imm, 'u32') if op == 'cmpli' else cast('u32', self.reg(i.b))
             self._setcr(i.crf, cast('u32', self.reg(i.a)), y, False)
+            if op == 'cmpli':
+                self.last_bound = i.imm
             return
         if op == 'fcmpu' or op == 'fcmpo':
             self._setcr(i.crf, self.freg(i.a), self.freg(i.b), True)
@@ -1258,7 +1284,12 @@ class Lifter(object):
             if i.lk:
                 self._call(i, indirect=True)
             else:
-                self._statement(i.addr, Stmt('goto_indirect', rhs=self.ctr))
+                sw = self._jump_table(self.ctr)
+                if sw is not None:
+                    idx, targets = sw
+                    self._statement(i.addr, Stmt('switch_table', rhs=idx, target=targets))
+                else:
+                    self._statement(i.addr, Stmt('goto_indirect', rhs=self.ctr))
             return
         if op == 'mtspr':
             if i.spr == 9:
@@ -1718,6 +1749,50 @@ class Lifter(object):
         else:
             self.regs[3] = call
 
+    def _jump_table(self, ctr):
+        """(index expression, [target addresses]) for a `bctr` through a table.
+
+        GCC's PIC switch: `entry = table[idx]; goto entry + table` with the
+        entries relative to the table's own address, guarded just before by
+        `if ((unsigned)idx > N) goto default`, which gives the table's length.
+        """
+        if ctr is None:
+            return None
+        base = None
+        tl = ctr
+        if ctr.kind == 'binop' and ctr.op == '+':
+            for x, y in ((ctr.a, ctr.b), (ctr.b, ctr.a)):
+                if x.kind == 'tableload' and is_const(y):
+                    tl, base = x, y.val
+        if tl.kind == 'addr' and tl.a.kind == 'tableload' and not tl.b:
+            tl, base = tl.a, tl.val
+        if tl.kind == 'addr' and tl.a.kind == 'picbase' and len(tl.b) == 1 \
+                and tl.b[0][1] == 1 and tl.b[0][0].kind == 'tableload':
+            # entry + table address, the address being PIC-relative
+            base = tl.a.val + tl.val
+            tl = tl.b[0][0]
+        if tl.kind != 'tableload':
+            return None
+        table = tl.a.val
+        n = (self.last_bound + 1) if self.last_bound is not None else None
+        if n is None or n > 512:
+            return None
+        targets = []
+        for k in range(n):
+            w = self.bin.u32(table + 4 * k)
+            if w is None:
+                return None
+            if base is not None:
+                if w & 0x80000000:
+                    w -= 1 << 32
+                w = (base + w) & 0xFFFFFFFF
+            if not (self.start <= w < self.end):
+                return None
+            targets.append(w)
+        self.data_ranges.add((table, table + 4 * n))
+        self.switch_targets |= set(targets)
+        return tl.b, targets
+
     def _prototype(self, name, target):
         if name in self.bin.funcs:
             u, f = self.bin.unit_of(name)
@@ -2040,6 +2115,9 @@ def build_blocks(stmts):
         elif st.kind == 'goto_indirect':
             cur.term = ('goto_indirect', st.rhs)
             cur = None
+        elif st.kind == 'switch_table':
+            cur.term = ('switch', st.rhs, st.target)
+            cur = None
     return [b for b in blocks if not (b.synthetic and not b.body and b.term is None)]
 
 
@@ -2128,6 +2206,10 @@ class Structurer(object):
                 tgt = t[-1]
                 if tgt in self.index:
                     self.blocks[self.index[tgt]].preds.add(b.addr)
+            if t and t[0] == 'switch':
+                for tgt in t[2]:
+                    if tgt in self.index:
+                        self.blocks[self.index[tgt]].preds.add(b.addr)
 
     # -- structuring -------------------------------------------------------------
 
@@ -2326,6 +2408,53 @@ class Structurer(object):
             b.body = b.body[:-1]
         return Node('switch', expr=expr, cases=body, brk=join, addr=b.addr), join_idx
 
+    def _table_switch(self, k, hi, exit_addr):
+        """Structure a jump-table switch at block k."""
+        b = self.blocks[k]
+        idx, targets = b.term[1], b.term[2]
+        # the switch expression and the case numbers: idx is usually var - c
+        expr, offset = idx, 0
+        if idx.kind == 'binop' and idx.op == '+' and is_const(idx.b):
+            expr, offset = idx.a, -idx.b.val
+        if expr.kind == 'cast' and is_int(expr.ty) and is_int(expr.a.ty):
+            expr = expr.a
+        cases = {}
+        for v, tgt in enumerate(targets):
+            cases.setdefault(tgt, []).append(v + offset)
+        # the join: where the cases go when they are done -- the region's
+        # exit (the default, branched to before the table)
+        join = exit_addr
+        join_idx = hi
+        leaf_idx = {}
+        for lf in cases:
+            ti = self.index.get(lf)
+            if ti is None or ti <= k or ti >= hi:
+                # a case that is the join itself: nothing to emit for it
+                if lf == join:
+                    continue
+                self.used_labels.add(lf)
+                continue
+            leaf_idx[lf] = ti
+        order = sorted(leaf_idx.items(), key=lambda kv: kv[1])
+        bounds = sorted(leaf_idx.values()) + [join_idx]
+        body = []
+        for lf, ti in order:
+            nxt = [x for x in bounds if x > ti]
+            end = nxt[0]
+            for blk in self.blocks[ti + 1:end]:
+                for p in blk.preds:
+                    if not (ti <= self.index[p] < end):
+                        break
+            last = self.blocks[end - 1]
+            falls = last.term is None or (last.term[0] in ('if', 'ifret'))
+            nodes = self._region(ti, end, join)
+            body.append((cases[lf], nodes, falls and end < join_idx))
+        # cases that jump straight to the join need no body
+        for lf, vals in cases.items():
+            if lf == join:
+                body.append((vals, [], False))
+        return Node('switch', expr=expr, cases=body, brk=join, addr=b.addr), join_idx
+
     def _region(self, lo, hi, exit_addr):
         """Structure blocks[lo:hi]; control leaves the region to exit_addr."""
         out = []
@@ -2361,6 +2490,11 @@ class Structurer(object):
             if t[0] == 'goto_indirect':
                 out.append(Node('goto_indirect', expr=t[1]))
                 k += 1
+                continue
+            if t[0] == 'switch':
+                node, nk = self._table_switch(k, hi, exit_addr)
+                out.append(node)
+                k = nk
                 continue
             if t[0] == 'goto':
                 k = self._handle_goto(k, t[1], lo, hi, exit_addr, out)

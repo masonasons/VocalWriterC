@@ -187,7 +187,9 @@ class Binary(object):
     def extent(self, name):
         start = self.funcs[name]
         later = sorted(a for a in self.func_by_addr if a > start)
-        return start, (later[0] if later else start + 0x4000)
+        end = later[0] if later else start + 0x4000
+        text = [s for s in self.sections if s[1] == '__text'][0]
+        return start, min(end, text[2] + text[3])
 
 
 if __name__ == '__main__':
