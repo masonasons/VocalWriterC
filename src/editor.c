@@ -30,6 +30,7 @@ struct vw_editor {
     int voiceCount;
     char voiceName[17];
     int16_t lexRef;
+    int reverbMemory;
 };
 
 /* InitSharedTables carves up one set of tables from the `ttvi` resource and
@@ -272,6 +273,40 @@ float vw_ed_speech_volume(vw_editor *e)
 void vw_ed_set_speech_volume(vw_editor *e, float v)
 {
     e->zz->speechVolume = v;
+}
+
+/* -- the reverb -------------------------------------------------------------- */
+
+int vw_ed_reverb(vw_editor *e, float room, float wet)
+{
+    if (!e->reverbMemory) {
+        /* Synth_Startup would do this; the editor brings the engine up by
+           hand, so the shell record is filled in far enough for the reverb
+           and its delay lines are asked for once. */
+        e->svv.ChannelGlobals = e->xx;
+        e->svv.reverbEnabled = (GetReverbMemory(&e->svv) == 0);
+        if (!e->svv.reverbEnabled)
+            return -1;
+        e->reverbMemory = 1;
+    }
+    Synth_SetReverb(&e->svv, room, wet, 1.0f - wet);
+    XferReverbHold(e->xx);
+    return e->xx->reverbON ? 0 : 1;
+}
+
+int vw_ed_reverberate(vw_editor *e, int16_t *samples, int32_t frames)
+{
+    int16_t *keptBuffer = e->xx->sampleBuffer;
+    int32_t keptFrames = e->xx->SoundBufferFrames;
+
+    if (!e->xx->reverbON || frames < 220)
+        return -1;
+    e->xx->sampleBuffer = samples;
+    e->xx->SoundBufferFrames = frames / 220;
+    Reverberator_Process(e->xx, 0);
+    e->xx->sampleBuffer = keptBuffer;
+    e->xx->SoundBufferFrames = keptFrames;
+    return 0;
 }
 
 /* -- words ------------------------------------------------------------------ */

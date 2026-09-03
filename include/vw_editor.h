@@ -105,6 +105,28 @@ void vw_ed_set_emph(vw_editor *e, float a, float b);
 float vw_ed_speech_volume(vw_editor *e);
 void vw_ed_set_speech_volume(vw_editor *e, float v);
 
+/* -- the reverb ----------------------------------------------------------- */
+
+/* The application's own reverb, set the way its own dialog sets it: `room`
+   scales the four delay lines (its "room size") and `wet` is how much of the
+   reverberated signal is heard, the dry part being 1 - wet. Both 0 to 1;
+   VocalWriter's own defaults are 0.40 and 0.24. Wet at zero turns it off.
+
+   Returns 0 when it is on, 1 when the settings leave it off, -1 if the
+   reverb's memory could not be had. */
+int vw_ed_reverb(vw_editor *e, float room, float wet);
+
+/* Reverberate a block in place: `frames` stereo frames of interleaved 16-bit
+   samples, which is the arrangement the engine's own output buffer is in.
+   The block is processed 220 frames at a time, as the application processes
+   its sound buffers, so `frames` should be a multiple of 220 -- anything left
+   over is not touched. Returns 0, or -1 if the reverb is off.
+
+   The delay lines carry over from one call to the next, so a song rendered in
+   pieces reverberates as one piece: call it in order and do not interleave two
+   songs through one editor. */
+int vw_ed_reverberate(vw_editor *e, int16_t *samples, int32_t frames);
+
 /* -- words ---------------------------------------------------------------- */
 
 /* The `EnglishLex` dictionary, as the whole file. It stays the caller's to
