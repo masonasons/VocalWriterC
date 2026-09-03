@@ -159,9 +159,18 @@ void vw_ed_tempo(vw_editor *e, int bpm)
     SetTempo(e->xx, (int16_t)bpm);
 }
 
-void vw_ed_program(vw_editor *e, int program)
+int vw_ed_program(vw_editor *e, int program)
 {
+    int voice = vw_ed_program_voice(e, program);
+    if (voice < 0)
+        return -1;
+    /* the same refusal as vw_ed_voice: the program map reaches the wavetable
+       voices too, and a program change to one of those without the bank
+       crashes in exactly the same place */
+    if (vw_ed_voice_needs_bank(e, voice) > 0 && !vw_ed_has_bank(e))
+        return -2;
     PgmChange_Speech(e->xx, 0, (int16_t)program);
+    return 0;
 }
 
 int vw_ed_sequence(vw_editor *e, const unsigned char *blob, size_t len)
@@ -501,10 +510,32 @@ const char *vw_ed_voice_name_at(vw_editor *e, int index)
     return name_of(e, e->zz->GMVoiceData[index]);
 }
 
-int vw_ed_voice(vw_editor *e, int index)
+int vw_ed_has_bank(vw_editor *e)
 {
+    return e->hasBank && e->xx->Wave_Data != NULL;
+}
+
+int vw_ed_voice_needs_bank(vw_editor *e, int index)
+{
+    voiceDataPtr rec;
     if (e->zz->GMVoiceData == NULL || index < 0 || index >= e->voiceCount)
         return -1;
+    rec = e->zz->GMVoiceData[index];
+    /* waveType 1 is the sample glottis: the source is a wavetable out of the
+       instrument bank rather than the modelled glottal pulse */
+    return rec != NULL && rec->waveType == 1;
+}
+
+int vw_ed_voice(vw_editor *e, int index)
+{
+    int needs = vw_ed_voice_needs_bank(e, index);
+    if (needs < 0)
+        return -1;
+    /* InitSampleGlott reads the wave data and the oscillator tables while the
+       voice is being selected. Without an instrument bank that is a null
+       pointer, and the engine has nothing of its own to stop it. */
+    if (needs && !vw_ed_has_bank(e))
+        return -2;
     /* what PgmChange_Speech does after the map lookup */
     e->zz->voiceRef = (int16_t)index;
     NewVoice(e->zz, (void *)e->zz->GMVoiceData[index]);

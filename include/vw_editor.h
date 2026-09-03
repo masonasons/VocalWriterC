@@ -41,7 +41,10 @@ void vw_ed_close(vw_editor *e);
    application leaves it at 1/240; it is here because the driver sets it. */
 void vw_ed_tempo_scale(vw_editor *e, float mul);
 void vw_ed_tempo(vw_editor *e, int bpm);
-void vw_ed_program(vw_editor *e, int program);
+/* A program change, through the bank's own map. Returns 0, -1 for no such
+   program, or -2 if the voice it picks needs an instrument bank there is
+   none of. */
+int vw_ed_program(vw_editor *e, int program);
 
 /* The packed phoneme block SetSeqAddr reads: count, then the phoneme codes,
    the control words, a spare word each and the durations, all big-endian, as
@@ -189,8 +192,18 @@ const char *vw_ed_voice_name_at(vw_editor *e, int index);
 
 /* Sing with the voice at that place in the bank: what PgmChange_Speech does
    once it has looked the program up. Returns 0, or -1 if there is no such
-   voice. */
+   voice, or -2 if it is one of the voices built on wavetables and no
+   instrument bank has been given (see vw_ed_bank). Selecting one of those
+   without the wavetables reads a null pointer inside the engine, so it is
+   refused here rather than crashed on. */
 int vw_ed_voice(vw_editor *e, int index);
+
+/* Whether a voice is built on the wavetables, and so needs the instrument
+   bank before it can be selected. 1 yes, 0 no, -1 no such voice. */
+int vw_ed_voice_needs_bank(vw_editor *e, int index);
+
+/* Whether an instrument bank has been given. */
+int vw_ed_has_bank(vw_editor *e);
 
 #ifdef __cplusplus
 }
