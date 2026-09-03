@@ -86,7 +86,11 @@ int vw_ed_control(vw_editor *e, const char *name, int32_t value);
 void vw_ed_note(vw_editor *e, int key, int nextKey, int velocity, double beats);
 
 /* e_Fill_Next_Frame then SayFrame, `count` times, stopping early when the
-   engine finishes or asks for a note. Returns how many frames were run. */
+   engine finishes or asks for a note. Returns how many frames were run.
+
+   The output buffer grows as it fills. A phrase is however long the singing
+   goes on without a rest, which can be the whole song, and the engine writes
+   into that buffer with nothing of its own to stop it. */
 int vw_ed_frames(vw_editor *e, int count);
 
 int vw_ed_state(vw_editor *e);        /* speakState: 3 means it has finished */

@@ -19,7 +19,16 @@
 #include "vocalwriter.h"
 #include "vw_editor.h"
 
-#define OUT_SAMPLES (1 << 21)      /* what ppc/synth.py allocates */
+/* How much output to start with: 1 << 21 halfwords is 23.8 seconds, which is
+   what the interpreter driver allocates. A phrase can be longer than that --
+   a legato line with no rest in it is one phrase however long the song is --
+   so the buffer grows rather than being written past. It was written past
+   before this: `SayFrame` takes the buffer from the context and writes 440
+   halfwords wherever waveIndex points, with nothing to stop it, so a phrase
+   of 24 seconds walked off the end of the block and took the process with
+   it. */
+#define OUT_SAMPLES (1 << 21)
+#define FRAME_HALFWORDS 440
 #define TEMPO_SCALE (1.0f / 240.0f)
 
 struct vw_editor {
@@ -27,6 +36,7 @@ struct vw_editor {
     synthVarsPtr xx;
     formantVarPtr zz;
     int16_t *seq;
+    int32_t sampleCapacity;            /* halfwords in xx->sampleBuffer */
     int16_t *blank_time_tbl;
     int voiceCount;
     char voiceName[17];
@@ -77,6 +87,7 @@ vw_editor *vw_ed_open(const unsigned char *rsrc, size_t rsrc_len,
     e->xx->speechVars[0] = e->zz;
     e->xx->GMVoicePtr = vw_load_voices(mvox, mvox_len, &e->voiceCount);
     e->xx->sampleBuffer = (int16_t *)calloc(OUT_SAMPLES, sizeof(int16_t));
+    e->sampleCapacity = OUT_SAMPLES;
     /* The glide table stays blank until vw_ed_defaults is asked for the real
        one: the engine's default portamento is read out of it, and a driver
        that wants notes to step rather than glide must set the defaults while
@@ -230,10 +241,39 @@ void vw_ed_note(vw_editor *e, int key, int nextKey, int velocity, double beats)
                 (mFloat)beats);
 }
 
+/* Room for one more frame, doubling the buffer when there is not. The engine
+   reads the buffer out of the context at the start of every frame, so moving
+   it between frames is safe. */
+static int room_for_a_frame(vw_editor *e)
+{
+    int32_t want = e->zz->waveIndex + FRAME_HALFWORDS;
+    int32_t size;
+    int16_t *bigger;
+
+    if (want <= e->sampleCapacity)
+        return 1;
+    size = e->sampleCapacity;
+    while (size < want && size < (1 << 30))
+        size *= 2;
+    if (size < want)
+        return 0;
+    bigger = (int16_t *)realloc(e->xx->sampleBuffer,
+                                (size_t)size * sizeof(int16_t));
+    if (bigger == NULL)
+        return 0;
+    memset(bigger + e->sampleCapacity, 0,
+           (size_t)(size - e->sampleCapacity) * sizeof(int16_t));
+    e->xx->sampleBuffer = bigger;
+    e->sampleCapacity = size;
+    return 1;
+}
+
 int vw_ed_frames(vw_editor *e, int count)
 {
     int done = 0;
     while (done < count) {
+        if (!room_for_a_frame(e))
+            break;
         e_Fill_Next_Frame(e->zz);
         SayFrame(e->zz);
         done++;
