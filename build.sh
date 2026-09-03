@@ -12,7 +12,21 @@ CC=${CC:-gcc}
 AR=${AR:-ar}
 CFLAGS="-O2 -g -std=c11 -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter \
  -Wno-unused-but-set-variable -Wno-sign-compare -Wno-unused-function \
- -ffp-contract=off -fwrapv -fexcess-precision=standard -fno-fast-math -Iinclude -Itest"
+ -ffp-contract=off -fwrapv -fno-fast-math -Iinclude -Itest"
+
+# -fexcess-precision=standard is GCC's, and older Clang does not know
+# it. What it prevents -- x87's 80-bit registers carrying extra
+# precision between operations -- happens on 32-bit x86 and nowhere
+# else, so where the compiler will not take the flag there is nothing
+# for it to prevent. Probe rather than assume.
+PROBE="${TMPDIR:-/tmp}/vw_flag_probe"
+echo "int main(void){return 0;}" > "$PROBE.c"
+if $CC -fexcess-precision=standard -c "$PROBE.c" -o "$PROBE.o" 2>/dev/null; then
+    CFLAGS="$CFLAGS -fexcess-precision=standard"
+else
+    echo "note: $CC does not take -fexcess-precision=standard; going without it"
+fi
+rm -f "$PROBE.c" "$PROBE.o"
 mkdir -p build
 OBJS=""
 for f in speech tables music reverb macshim orthtophon parsephons convertsmf expandtracks \
