@@ -194,6 +194,15 @@ void vw_ed_volume(vw_editor *e, int32_t value)
     vw_SetTotalVolume(e->zz);
 }
 
+void vw_ed_level(vw_editor *e, float level)
+{
+    /* Speech_TrackLevel with the rounding taken out: it is amt/100 into the
+       same field, and a voice built on a wavetable can be thirty times too
+       loud for full scale, which 1 of 100 does not divide finely enough. */
+    e->zz->trackLevel = level;
+    vw_SetTotalVolume(e->zz);
+}
+
 int vw_ed_control(vw_editor *e, const char *name, int32_t value)
 {
     synthVarsPtr xx = e->xx;
