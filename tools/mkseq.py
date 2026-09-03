@@ -162,6 +162,11 @@ def main():
         # pointers parked in the Sound Manager's and Deferred Task Manager's
         # long fields (never read back here: there is no sound channel)
         text = re.sub(r'(\.param2|\.dtParam) = (svv|&svv->SH);', r'\1 = (int32_t)(intptr_t)\2;', text)
+        # the records the original allocated by its own sizes: pointers are
+        # wider here, so allocate what the host needs
+        text = text.replace('(shellVarPtr)NewPtrClear(668)', '(shellVarPtr)NewPtrClear(sizeof(shellVar))')
+        text = text.replace('(synthVarsPtr)NewPtrClear(200836)', '(synthVarsPtr)NewPtrClear(sizeof(synthVars))')
+        text = text.replace('(void *)NewPtrClear(4396)', '(void *)NewPtrClear(sizeof(formantVar))')
         # a double zeroed as two words
         return text.replace('        (*(int32_t *)&tempD) = 0;\n        t_2c = 0;', '        tempD = 0.0;')
 

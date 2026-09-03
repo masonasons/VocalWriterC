@@ -58,7 +58,7 @@ int16_t Synth_Startup(shellVarPtr *svvPtr, int32_t polyphony, int32_t reverbAllo
     int16_t i;
     int16_t t_48;
 
-    svv = (shellVarPtr)NewPtrClear(668);
+    svv = (shellVarPtr)NewPtrClear(sizeof(shellVar));
     if (svv == 0) {
         error = -620;
     } else {
@@ -124,7 +124,7 @@ int16_t Synth_Startup(shellVarPtr *svvPtr, int32_t polyphony, int32_t reverbAllo
                                 if (svv->seqMark_CBTimerProc == 0) {
                                     error = -620;
                                 } else {
-                                    svv->ChannelGlobals = (synthVarsPtr)NewPtrClear(200836);
+                                    svv->ChannelGlobals = (synthVarsPtr)NewPtrClear(sizeof(synthVars));
                                     if (svv->ChannelGlobals == 0) {
                                         error = -620;
                                     } else {
@@ -948,7 +948,7 @@ int16_t _i_Get_Speech(synthVarsPtr xx, int16_t speechChan)
     int16_t error;
 
     error = 0;
-    xx->speechVars[speechChan] = (void *)NewPtrClear(4396);
+    xx->speechVars[speechChan] = (void *)NewPtrClear(sizeof(formantVar));
     if (xx->speechVars[speechChan] != 0) {
         return error;
     }

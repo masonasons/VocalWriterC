@@ -12,7 +12,9 @@
  * engine's data tables out of its own resource fork; here the caller
  * installs them with vw_load_ttvi first.
  */
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "vw_engine.h"
 
@@ -22,7 +24,10 @@ int16_t g_instanceCount;
    vw_load_ttvi has already put it in g_DataHandle */
 OSErr InitSynth(void)
 {
-    g_instanceCount = 0;
+    /* One more than the instances: Synth_ShutDown disposes the shared
+       tables when the count reaches zero, and they are the port's own
+       buffers (vw_load_ttvi), freed by vw_engine_close. */
+    g_instanceCount = 1;
     g_Freq_Tbl = NULL;
     if (g_DataHandle == NULL || *g_DataHandle == NULL)
         return -192;                             /* resNotFound */
@@ -84,15 +89,26 @@ int16_t DTInstall(void *task)
 
 /* -- Sound Manager: no channel; a buffer command completes immediately ---- */
 
+/* The channel is a record nothing plays through; it exists because the
+   startup path frees its buffers twice if opening one fails -- a slip the
+   original never reached. */
 int16_t SndNewChannel(void *chan, int16_t synth, int32_t init, void *userRoutine)
 {
-    (void)chan; (void)synth; (void)init; (void)userRoutine;
-    return -204;                                 /* resProblem: no channel */
+    void **rec;
+    (void)synth; (void)init; (void)userRoutine;
+    rec = (void **)calloc(1, 1060);              /* sizeof(SndChannel) on the Mac */
+    if (rec == NULL)
+        return -108;
+    /* the shell record owning the channel, for SndDoCommand below */
+    rec[0] = (char *)chan - offsetof(shellVar, SndChan);
+    *(void **)chan = rec;
+    return 0;
 }
 
 int16_t SndDisposeChannel(void *chan, int16_t quietNow)
 {
-    (void)chan; (void)quietNow;
+    (void)quietNow;
+    free(chan);
     return 0;
 }
 
@@ -102,9 +118,15 @@ int16_t SndDoImmediate(void *chan, void *cmd)
     return 0;
 }
 
+/* A queued buffer command (SendBufCmd's callback request) completes at
+   once: the Sound Manager would have called back when the buffer had
+   played, and Synth_StopMusic waits for that count to reach zero. */
 int16_t SndDoCommand(void *chan, void *cmd, int16_t noWait)
 {
-    (void)chan; (void)cmd; (void)noWait;
+    shellVarPtr svv = chan ? (shellVarPtr)((void **)chan)[0] : NULL;
+    (void)cmd; (void)noWait;
+    if (svv != NULL && svv->soundCB_Count > 0)
+        svv->soundCB_Count--;
     return 0;
 }
 
