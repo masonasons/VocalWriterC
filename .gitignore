@@ -1,0 +1,14 @@
+build/
+gen/*.c
+gen/*.h
+gen/*.txt
+gen/patch*.py
+__pycache__/
+*.pyc
+*.o
+*.exe
+*.wav
+*.wav16
+*.ctx
+*.rvb
+*.layout
