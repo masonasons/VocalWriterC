@@ -137,10 +137,10 @@ void Calc_Pole_Coefficients(formantVarPtr zz, rShort *Acoeff, rShort *Bcoeff, rS
         pitch = 256;
     }
     bwIndex = (bandWidth - 50) / 5;
-    *Ccoeff = zz->CcoeffTblPtr[bwIndex];
+    (*Ccoeff) = zz->CcoeffTblPtr[bwIndex];
     cosVal = zz->CosTblPtr[pitch - 256];
-    *Bcoeff = zz->BcoeffTblPtr[bwIndex] * cosVal;
-    *Acoeff = (float)(1.0 - *Bcoeff - *Ccoeff);
+    (*Bcoeff) = zz->BcoeffTblPtr[bwIndex] * cosVal;
+    (*Acoeff) = (float)(1.0 - *Bcoeff - *Ccoeff);
 }
 
 /* Speech.c:242  (0x93d48) */
@@ -153,12 +153,12 @@ void Calc_Zero_Coefficients(formantVarPtr zz, rShort *Acoeff, rShort *Bcoeff, rS
         bandWidth = 1225;
     }
     bwIndex = (bandWidth - 50) / 5;
-    *Ccoeff = zz->CcoeffTblPtr[bwIndex];
+    (*Ccoeff) = zz->CcoeffTblPtr[bwIndex];
     cosVal = zz->CosTblPtr[pitch - 256];
-    *Bcoeff = zz->BcoeffTblPtr[bwIndex] * cosVal;
-    *Bcoeff = 0.0f - *Bcoeff;
-    *Ccoeff = 0.0f - *Ccoeff;
-    *Acoeff = (float)(*Bcoeff + 1.0 + *Ccoeff);
+    (*Bcoeff) = zz->BcoeffTblPtr[bwIndex] * cosVal;
+    (*Bcoeff) = 0.0f - *Bcoeff;
+    (*Ccoeff) = 0.0f - *Ccoeff;
+    (*Acoeff) = (float)(*Bcoeff + 1.0 + *Ccoeff);
 }
 
 /* Speech.c:263  (0x93ec0) */
@@ -634,7 +634,7 @@ void SayFrame(formantVarPtr zz)
             } else if (sampleIndex < -32760) {
                 sampleIndex = -32760;
             }
-            *local_sampleBuffer = sampleIndex;
+            (*local_sampleBuffer) = sampleIndex;
             wByte = (float)(zz->lastnSampR + (nSampR - zz->lastnSampR) * 0.5);
             sampleIndex = local_sampleBuffer[1] + FTOI(wByte);
             if (sampleIndex > 32760) {
@@ -1018,17 +1018,17 @@ void AdjustGain(formantVarPtr zz, int16_t index, int16_t *target_Val)
         return;
     }
     if (zz->cur_ControlBlk_Index == 3) {
-        *target_Val = (*target_Val * zz->voiceBWgain1) >> 16;
+        (*target_Val) = (*target_Val * zz->voiceBWgain1) >> 16;
         return;
     }
     if (zz->cur_ControlBlk_Index == 4) {
-        *target_Val = (*target_Val * zz->voiceBWgain2) >> 16;
+        (*target_Val) = (*target_Val * zz->voiceBWgain2) >> 16;
         return;
     }
     if (zz->cur_ControlBlk_Index != 5) {
         return;
     }
-    *target_Val = (*target_Val * zz->voiceBWgain3) >> 16;
+    (*target_Val) = (*target_Val * zz->voiceBWgain3) >> 16;
 }
 
 /* Speech.c:1690  (0x97640) */
@@ -1771,13 +1771,13 @@ void Get_Diphthongs(formantVarPtr zz, int16_t index)
     cb->curP_START_Targ = p1_Val;
     cb->curTarget_TIME = t1_Val;
     cb->curTarget_STEP = 0;
-    *zz->next_DiphEntry = t2_Val;
+    (*zz->next_DiphEntry) = t2_Val;
     zz->next_DiphEntry++;
-    *zz->next_DiphEntry = step_Size;
+    (*zz->next_DiphEntry) = step_Size;
     zz->next_DiphEntry++;
-    *zz->next_DiphEntry = zz->cur_Phon_Dur_CF;
+    (*zz->next_DiphEntry) = zz->cur_Phon_Dur_CF;
     zz->next_DiphEntry++;
-    *zz->next_DiphEntry = 0;
+    (*zz->next_DiphEntry) = 0;
     zz->next_DiphEntry++;
     cb->curP_END_Targ = p2_Val;
 }

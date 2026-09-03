@@ -251,6 +251,11 @@ class Lifter(object):
         'log10': ('f64', ['f64']), 'sqrt': ('f64', ['f64']),
         'NewPtrClear': ('ptr', ['i32']), 'NewPtr': ('ptr', ['i32']),
         'DisposePtr': ('void', ['ptr']),
+        'NewHandle': ('ptr', ['i32']), 'NewHandleClear': ('ptr', ['i32']),
+        'DisposeHandle': ('void', ['ptr']), 'SetHandleSize': ('void', ['ptr', 'i32']),
+        'GetHandleSize': ('i32', ['ptr']), 'HLock': ('void', ['ptr']),
+        'HUnlock': ('void', ['ptr']), 'MemError': ('i16', []),
+        'DebugStr': ('void', ['ptr']),
         'SetFPos': ('i16', ['i16', 'i16', 'i32']),
         'FSRead': ('i16', ['i16', 'ptr', 'ptr']),
         'BlockMoveData': ('void', ['ptr', 'ptr', 'i32']),
@@ -948,7 +953,11 @@ class Lifter(object):
                 if want > size:
                     return Expr('deref', tg, a=Expr('addrof', 'ptr', a=e), lvalue=True,
                                 extra='partial')
-                self.warn('access of %d bytes to %d-byte field at %x' % (size, want, self.cur.addr))
+                if e.kind == 'deref' and not isinstance(e.extra, str):
+                    addr = e.a
+                else:
+                    addr = Expr('addrof', 'ptr', a=e)
+                return Expr('deref', tg, a=addr, lvalue=True, extra='bewide', val=size)
             return e
 
     def _take_index(self, terms, esize):
@@ -1582,6 +1591,10 @@ class Lifter(object):
         if tg in ('intpat', 'bool'):
             tg = 'i32'
         name = self.temps.get(off)
+        if isinstance(val.ty, Type) and is_ptr(val.ty):
+            tg = val.ty                       # a pointer parked in a slot stays one
+        elif name is not None and isinstance(name[1], Type) and is_ptr(name[1]):
+            tg = name[1]                      # ... even when NULL is stored in it
         if name is None or name[1] != tg:
             self.temps[off] = (name[0] if name else 't_%x' % off, tg)
         v = var(self.temps[off][0], tg)
@@ -1849,6 +1862,8 @@ def float_literal(v, ty):
 def int_literal(v):
     if v < 0:
         return '-' + int_literal(-v)
+    if v >= 0x80000000:
+        return '0x%x' % v
     if v in (0x7F, 0xFF, 0x7FFF, 0x8000, 0xFFFF):
         return '0x%x' % v
     if v >= 0x10000 and (v & 0xFF) in (0, 0xFF):
@@ -1892,6 +1907,8 @@ class Renderer(object):
         if k == 'index':
             return '%s[%s]' % (self.render(e.a, POSTFIX), self.render(e.b, 0)), POSTFIX
         if k == 'deref':
+            if e.extra == 'bewide':
+                return 'VW_LD%dBE(%s)' % (e.val * 8, self.render(e.a, 0)), POSTFIX
             if isinstance(e.extra, str):
                 return '*(%s *)%s' % (self.ctype(e.ty), self.render(e.a, UNARY)), UNARY
             return '*%s' % self.render(e.a, UNARY), UNARY
@@ -2009,7 +2026,12 @@ class Renderer(object):
     def stmt(self, st, indent):
         pad = '    ' * indent
         if st.kind == 'assign':
+            if st.lhs.kind == 'deref' and st.lhs.extra == 'bewide':
+                return '%sVW_ST%dBE(%s, %s);' % (pad, st.lhs.val * 8, self.render(st.lhs.a, 0),
+                                                self.render(st.rhs, 0))
             lhs = self.render(st.lhs, 0)
+            if st.lhs.kind == 'deref':
+                lhs = '(%s)' % lhs          # (*p)++ is not *p++
             rhs = st.rhs
             inc = self._pointer_step(st.lhs, rhs)
             if inc is not None:
@@ -2519,6 +2541,23 @@ class Structurer(object):
                     out.append(Node('if', cond=self.L._not(cond), then=then, els=None))
                     k = hi
                     continue
+                if ti is not None and k < ti < hi and not self._closed(k + 1, ti, k):
+                    # the then-branch ends by jumping where the if goes --
+                    # to a loop's test placed after the loop's body, say --
+                    # and what lies between belongs to the loop, not the if
+                    for ej in range(k + 1, ti):
+                        bj = self.blocks[ej]
+                        if bj.term and (bj.term[0] == 'return' or
+                                        (bj.term[0] == 'goto' and bj.term[1] == tgt)):
+                            if self._closed(k + 1, ej + 1, k):
+                                then = self._region(k + 1, ej + 1, tgt)
+                                out.append(Node('if', cond=self.L._not(cond), then=then, els=None))
+                                k = self._handle_goto(ej, tgt, lo, hi, exit_addr, out)
+                            break
+                    else:
+                        ej = None
+                    if ej is not None and k > ej:
+                        continue
                 if ti is None or ti >= hi or not self._closed(k + 1, ti, k):
                     inl = self._inline_target(tgt, k)
                     if inl is not None:
@@ -2608,10 +2647,14 @@ class Structurer(object):
         # the tail: a straight run of blocks after the test, each entered
         # only from the one before, ending in a return or a jump
         tail = []
+        after = None             # where the tail falls through to, if it does
         t = ti + 1
         while t < len(self.blocks):
             b = self.blocks[t]
             if b.preds != {self.blocks[t - 1].addr}:
+                if tail and self.blocks[t - 1].term is None:
+                    after = b.addr            # shared by others: stop here
+                    break
                 return None
             tail.append(t)
             if b.term is not None and b.term[0] in ('return', 'goto'):
@@ -2621,6 +2664,8 @@ class Structurer(object):
             t += 1
         else:
             return None
+        if not tail:
+            return None
         if any(x in self.consumed for x in range(bi, tail[-1] + 1)):
             return None
         for x in range(bi, tail[-1] + 1):
@@ -2628,7 +2673,10 @@ class Structurer(object):
         body = self._region(bi, ti, cb.addr)
         nodes = [Node('while', cond=cb.term[1], body=body, addr=cb.addr,
                       brk=self.blocks[tail[0]].addr, cont=cb.addr)]
-        nodes.extend(self._region(tail[0], tail[-1] + 1, None))
+        nodes.extend(self._region(tail[0], tail[-1] + 1, after))
+        if after is not None:
+            nodes.append(Node('goto', target=after))
+            self.used_labels.add(after)
         return nodes
 
     def _handle_goto(self, k, tgt, lo, hi, exit_addr, out):

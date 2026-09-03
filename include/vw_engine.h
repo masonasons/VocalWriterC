@@ -238,4 +238,38 @@ unsigned char *vw_resource(const unsigned char *fork, size_t len,
    synthVars.GMVoicePtr, or NULL. */
 Ptr vw_load_voices(const unsigned char *mvox, size_t len, int *count);
 
+/* -- big-endian accesses through byte pointers ----------------------------
+   Where the original read a halfword or word through a `char *` (track
+   records, the lexicon's packed strings) the port reads the bytes in the
+   order the PowerPC did, so the data formats stay what the files hold. */
+#define VW_LD16BE(p) ((int16_t)(uint16_t)(((uint16_t)((const uint8_t *)(p))[0] << 8) |                                           ((const uint8_t *)(p))[1]))
+#define VW_LD32BE(p) ((int32_t)(((uint32_t)((const uint8_t *)(p))[0] << 24) |                                 ((uint32_t)((const uint8_t *)(p))[1] << 16) |                                 ((uint32_t)((const uint8_t *)(p))[2] << 8) |                                 (uint32_t)((const uint8_t *)(p))[3]))
+#define VW_ST16BE(p, v) do { uint16_t vw_v_ = (uint16_t)(v); uint8_t *vw_p_ = (uint8_t *)(p);                              vw_p_[0] = (uint8_t)(vw_v_ >> 8); vw_p_[1] = (uint8_t)vw_v_; } while (0)
+#define VW_ST32BE(p, v) do { uint32_t vw_v_ = (uint32_t)(v); uint8_t *vw_p_ = (uint8_t *)(p);                              vw_p_[0] = (uint8_t)(vw_v_ >> 24); vw_p_[1] = (uint8_t)(vw_v_ >> 16);                              vw_p_[2] = (uint8_t)(vw_v_ >> 8); vw_p_[3] = (uint8_t)vw_v_; } while (0)
+/* a big-endian word held in a native variable (file headers) */
+#define VW_BE32(x) VW_LD32BE(&(x))
+
+/* -- the Mac OS calls the front end makes (src/macshim.c) ----------------- */
+Ptr NewPtr(int32_t size);
+Ptr NewPtrClear(int32_t size);
+void DisposePtr(void *p);            /* Ptr in the original; any block here */
+Handle NewHandle(int32_t size);
+void SetHandleSize(Handle h, int32_t size);
+void DisposeHandle(Handle h);
+void HLock(Handle h);
+void HUnlock(Handle h);
+int16_t MemError(void);
+void DebugStr(const char *s);
+int16_t SetFPos(int16_t refNum, int16_t posMode, int32_t posOff);
+int16_t FSRead(int16_t refNum, int32_t *count, void *buf);
+/* the File Manager works over files loaded into memory: returns a refNum */
+int16_t vw_fs_open(const unsigned char *data, size_t len);
+void vw_fs_close(int16_t refNum);
+extern int vw_shim_defer_free;          /* tests: keep freed blocks readable */
+extern int vw_shim_fill;                /* tests: NewPtr fill byte, or -1 */
+void vw_shim_flush_deferred(void);
+extern int vw_shim_overruns;            /* blocks found overrun when freed */
+
+#include "vw_frontend.h"
+
 #endif /* VW_ENGINE_H */

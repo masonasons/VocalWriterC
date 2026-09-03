@@ -61,8 +61,50 @@ static int hexval(int c)
     return -1;
 }
 
+static unsigned char *unhex(const char *s, size_t *n)
+{
+    size_t len = 0;
+    unsigned char *out;
+    while (s[len] && s[len] != ' ' && s[len] != '\n' && s[len] != '\r')
+        len++;
+    out = (unsigned char *)NewPtr((int32_t)(len / 2 + 1));   /* guarded: overruns are reported */
+    for (*n = 0; *n < len / 2; (*n)++)
+        out[*n] = (unsigned char)(hexval(s[2 * *n]) * 16 + hexval(s[2 * *n + 1]));
+    return out;
+}
+
+static char *next_word(char **p)
+{
+    char *s = *p;
+    while (*s == ' ' || *s == '\t')
+        s++;
+    *p = s;
+    while (**p && **p != ' ' && **p != '\t' && **p != '\n' && **p != '\r')
+        (*p)++;
+    if (**p)
+        *(*p)++ = 0;
+    return s;
+}
+
+static void dump_words(FILE *w, const char *tag, const int16_t *v, int n)
+{
+    int i;
+    fprintf(w, " %s %d:", tag, n);
+    for (i = 0; i < n; i++)
+        fprintf(w, " %u", (unsigned)(uint16_t)v[i]);
+}
+
+static void dump_hex(FILE *w, const unsigned char *v, size_t n)
+{
+    size_t i;
+    for (i = 0; i < n; i++)
+        fprintf(w, "%02x", v[i]);
+}
+
 int main(int argc, char **argv)
 {
+    FILE *front = NULL;
+    int16_t lexref = 0;
     size_t fork_len, gm_len, ttvi_len, mvox_len;
     unsigned char *fork, *gm, *ttvi, *mvox;
     synthVarsPtr xx;
@@ -109,6 +151,24 @@ int main(int argc, char **argv)
     xx->Time_Tbl = (int16_t *)calloc(0x400, 1);
     xx->Freq_Tbl = g_Freq_Tbl;
     InitGlobals_Speech(xx, 0);
+    /* the front end's tables, as Synth_Startup wires them */
+    xx->phonFlags2 = g_phonFlags2;
+    xx->maxDurTbl = g_maxDurTbl;
+    xx->minDurTbl = g_minDurTbl;
+    xx->Opcode_To_ASCII = g_Opcode_To_ASCII;
+    xx->phonTypeTbl = g_phonTypeTbl;
+    xx->hash = g_hash;
+    xx->rule = g_rule;
+    xx->kind = g_kind;
+    xx->dashruletab = g_dashruletab;
+    xx->atruletab = g_atruletab;
+    xx->lruletab = g_lruletab;
+    xx->mruletab = g_mruletab;
+    xx->zruletab = g_zruletab;
+    xx->percentruletab = g_percentruletab;
+    xx->bruletab = g_bruletab;
+    xx->SuffixTab = g_SuffixTab;
+    xx->SuffixType = g_SuffixType;
 
     script = fopen(argv[3], "r");
     if (script == NULL) {
@@ -248,10 +308,79 @@ int main(int argc, char **argv)
             w = fopen(path, "wb");
             fwrite(xx->sampleBuffer, 2, (size_t)zz->waveIndex, w);
             fclose(w);
+        } else if (strcmp(cmd, "front") == 0) {
+            char path[1024];
+            snprintf(path, sizeof path, "%s.front", argv[4]);
+            front = fopen(path, "w");
+        } else if (strcmp(cmd, "fill") == 0) {
+            vw_shim_fill = atoi(p);
+        } else if (strcmp(cmd, "lexicon") == 0) {
+            size_t n;
+            unsigned char *lex = read_file(next_word(&p), &n);
+            if (lex == NULL) {
+                fprintf(stderr, "cannot read the lexicon\n");
+                return 1;
+            }
+            lexref = vw_fs_open(lex, n);
+        } else if (strcmp(cmd, "word") == 0) {
+            ConvertTextRec tRec;
+            char *text = next_word(&p);
+            size_t n = strlen(text);
+            int16_t err;
+            int32_t s, k;
+            memset(&tRec, 0, sizeof tRec);
+            if (n > 16)
+                n = 16;
+            memcpy(tRec.text_Input, text, n);
+            tRec.textLen_Input = (int32_t)n;
+            vw_shim_defer_free = 1;
+            err = OrthToPhon(xx, &tRec, lexref);
+            fprintf(front, "word %s err %d syll %d:", text, err, (int)tRec.syllables_Result);
+            for (s = 0; s < tRec.syllables_Result && s < 10; s++) {
+                fprintf(front, " %d:", (int)tRec.phon_Result[s].syllLen);
+                for (k = 0; k < tRec.phon_Result[s].syllLen && k < 8; k++)
+                    fprintf(front, "%s%u", k ? "." : "", tRec.phon_Result[s].syllStr[k]);
+            }
+            dump_words(front, "src", (const int16_t *)xx->srcParseBuf, (int)xx->srcParseLen);
+            dump_words(front, "phon2", xx->phon_Buf_2, xx->phonBuf_2_In_Index);
+            dump_words(front, "ctrl2", xx->phon_Ctrl_Buf_2, xx->phonBuf_2_In_Index);
+            fprintf(front, "\n");
+            vw_shim_flush_deferred();
+            vw_shim_defer_free = 0;
+        } else if (strcmp(cmd, "speech") == 0) {
+            int rate = atoi(next_word(&p));
+            size_t vn, tn;
+            unsigned char *vocals = unhex(next_word(&p), &vn);
+            unsigned char *track = unhex(next_word(&p), &tn);
+            Handle h = NewHandle(0);
+            int32_t len = -1, i;
+            int16_t err = MakeSpeechData(xx, vocals, track, h, &len, rate);
+            fprintf(front, "speech err %d len %d data:", err, (int)len);
+            for (i = 0; i < len / 2; i++)
+                fprintf(front, " %u", (unsigned)((uint16_t *)*h)[i]);
+            fprintf(front, "\n");
+            DisposeHandle(h);
+            DisposePtr(vocals);
+            DisposePtr(track);
+        } else if (strcmp(cmd, "recode") == 0) {
+            int start = atoi(next_word(&p));
+            int end = atoi(next_word(&p));
+            int flags = atoi(next_word(&p));
+            size_t vn, tn;
+            unsigned char *vocals = unhex(next_word(&p), &vn);
+            unsigned char *track = unhex(next_word(&p), &tn);
+            int16_t err = AdjustBoundryPhons(xx, vocals, track, start, end, flags);
+            fprintf(front, "recode err %d vocals ", err);
+            dump_hex(front, vocals, vn);
+            fprintf(front, "\n");
+            DisposePtr(vocals);
+            DisposePtr(track);
         } else if (cmd[0] != '#') {
             fprintf(stderr, "unknown command %s\n", cmd);
         }
     }
     fclose(ctxout);
+    if (front != NULL)
+        fclose(front);
     return 0;
 }

@@ -96,7 +96,7 @@ void ClearReverbModule(LP_REVERBMOD mod)
 
     dPtr = mod->m_psDelayBuffer;
     for (i = 0; mod->m_dwDelayBufferSize > i; i++) {
-        *dPtr = 0.0f;
+        (*dPtr) = 0.0f;
         dPtr++;
     }
 }
@@ -228,10 +228,10 @@ void XferReverbHold(synthVarsPtr xx)
 void Reverb_Demux16(float *psLeft, float *psRight, int16_t *psSource, int32_t dwSamples)
 {
     while (dwSamples != 0) {
-        *psLeft = (float)*psSource;
+        (*psLeft) = (float)*psSource;
         psLeft++;
         psSource++;
-        *psRight = (float)*psSource;
+        (*psRight) = (float)*psSource;
         psRight++;
         psSource++;
         dwSamples--;
@@ -243,7 +243,7 @@ void Reverb_Copy16_16(float *psDest, float *psSource, int32_t dwSamples, float r
 {
     if (rVolume <= 0.0f) {
         while (dwSamples != 0) {
-            *psDest = 0.0f;
+            (*psDest) = 0.0f;
             psDest++;
             dwSamples--;
         }
@@ -253,7 +253,7 @@ void Reverb_Copy16_16(float *psDest, float *psSource, int32_t dwSamples, float r
 L_85d28:
     if (rVolume == 1.0f) {
         while (dwSamples != 0) {
-            *psDest = *psSource;
+            (*psDest) = *psSource;
             psDest++;
             psSource++;
             dwSamples--;
@@ -261,7 +261,7 @@ L_85d28:
         return;
     }
     while (dwSamples != 0) {
-        *psDest = *psSource * rVolume;
+        (*psDest) = *psSource * rVolume;
         psDest++;
         psSource++;
         dwSamples--;
@@ -285,7 +285,7 @@ void Reverb_Mix16_16(float *psDest, float *psSource, int32_t dwSamples, float rV
             } else if (lSample > 32767.0f) {
                 lSample = 32767.0f;
             }
-            *psDest = lSample;
+            (*psDest) = lSample;
             psDest++;
             dwSamples--;
         }
@@ -299,7 +299,7 @@ void Reverb_Mix16_16(float *psDest, float *psSource, int32_t dwSamples, float rV
         } else if (lSample > 32767.0f) {
             lSample = 32767.0f;
         }
-        *psDest = lSample;
+        (*psDest) = lSample;
         psDest++;
         dwSamples--;
     }
@@ -309,10 +309,10 @@ void Reverb_Mix16_16(float *psDest, float *psSource, int32_t dwSamples, float rV
 static void Reverb_Mux16(int16_t *psDest, float *psLeft, float *psRight, int32_t dwSamples)
 {
     while (dwSamples != 0) {
-        *psDest = FTOI(*psLeft);
+        (*psDest) = FTOI(*psLeft);
         psDest++;
         psLeft++;
-        *psDest = FTOI(*psRight);
+        (*psDest) = FTOI(*psRight);
         psDest++;
         psRight++;
         dwSamples--;
@@ -338,9 +338,9 @@ static void ProcessReverbModule(LP_REVERBMOD mod, int32_t dwDestSamples, float *
         } else if (sDelayIn > -0.001) {
             sDelayIn = 0.0f;
         }
-        *mod->m_psDelayIn = sDelayIn;
+        (*mod->m_psDelayIn) = sDelayIn;
         mod->m_psDelayIn++;
-        *pDestination = sDelayOut - mod->m_lGain * sDelayIn;
+        (*pDestination) = sDelayOut - mod->m_lGain * sDelayIn;
         if ((uint32_t)mod->m_psDelayIn >= (uint32_t)mod->m_psDelayEnd) {
             mod->m_psDelayIn = mod->m_psDelayBuffer;
         }
@@ -349,7 +349,7 @@ static void ProcessReverbModule(LP_REVERBMOD mod, int32_t dwDestSamples, float *
             mod->m_psDelayOut = mod->m_psDelayBuffer;
         }
         if ((uint32_t)mod->m_psDelayOut > (uint32_t)mod->m_psDelayEnd) {
-            /* DebugStr(); -- cannot happen */
+            /* DebugStr(...); -- cannot happen */
         }
         pSource++;
         pDestination++;

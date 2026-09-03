@@ -42,6 +42,11 @@ typedef struct TMTask TMTask;
 typedef struct TMinfo TMinfo;
 typedef struct shellVar shellVar;
 typedef struct REVERBCONFIG REVERBCONFIG;
+typedef struct PhonSyllableRec PhonSyllableRec;
+typedef struct ConvertTextRec ConvertTextRec;
+typedef struct FEToken FEToken;
+typedef struct MIDI_Event MIDI_Event;
+typedef struct Dict Dict;
 typedef struct WaveDef WaveDef;
 typedef struct TrackInfo TrackInfo;
 typedef struct SeqInfo SeqInfo;
@@ -76,6 +81,7 @@ typedef void (*KaraProcPtr)(void);
 typedef void *TMinfoPtr;
 typedef void (*OMSOutUPP)(void);
 typedef void (*OMSOutProcPtr)(void);
+typedef void *IndexEntry;
 typedef formantVar *formantVarPtr;
 typedef voiceData *voiceDataPtr;
 typedef synthVars *synthVarsPtr;
@@ -84,6 +90,10 @@ typedef WaveDef *WaveDefPtr;
 typedef SeqInfo *SeqInfoPtr;
 typedef shellVar *shellVarPtr;
 typedef void (*_i_CvtSMFProg_Ptr)(void);
+typedef FEToken *FETokenPtr;
+typedef ConvertTextRec *ConvertTextRecPtr;
+typedef MIDI_Event *MIDI_EventPtr;
+typedef MIDI_Item *MIDI_ItemPtr;
 
 struct ControlBlock {  /* 36 bytes in the original */
     int16_t curP_START_Targ;  /* +0x0 */
@@ -993,6 +1003,59 @@ struct REVERBCONFIG {  /* 72 bytes in the original */
     float m_pfltDBRight[4];  /* +0x38 */
 };
 
+struct PhonSyllableRec {  /* 12 bytes in the original */
+    unsigned char syllStr[8];  /* +0x0 */
+    int32_t syllLen;  /* +0x8 */
+};
+
+struct ConvertTextRec {  /* 272 bytes in the original */
+    unsigned char text_Input[16];  /* +0x0 */
+    int32_t textLen_Input;  /* +0x10 */
+    int32_t syllables_Result;  /* +0x14 */
+    PhonSyllableRec phon_Result[10];  /* +0x18 */
+    int32_t hasAlt_Result;  /* +0x90 */
+    int32_t alt_Syllables_Result;  /* +0x94 */
+    PhonSyllableRec alt_Phon_Result[10];  /* +0x98 */
+};
+
+struct FEToken {  /* 180 bytes in the original */
+    unsigned char tokStr[37];  /* +0x0 */
+    int16_t tokLen;  /* +0x26 */
+    unsigned char phonStr[61];  /* +0x28 */
+    unsigned char phonHold[61];  /* +0x65 */
+    uint32_t bufOffset;  /* +0xa4 */
+    int16_t inDict;  /* +0xa8 */
+    int16_t inMorph;  /* +0xaa */
+    int16_t hasAlt;  /* +0xac */
+    int16_t altChoice;  /* +0xae */
+    int16_t suffix;  /* +0xb0 */
+    uint16_t addFlags;  /* +0xb2 */
+};
+
+struct MIDI_Event {  /* 28 bytes in the original */
+    unsigned char *targetTrack;  /* +0x0 */
+    uint32_t target_time;  /* +0x4 */
+    uint16_t target_chan;  /* +0x8 */
+    uint16_t target_cmd;  /* +0xa */
+    uint16_t target_key;  /* +0xc */
+    uint16_t target_vol;  /* +0xe */
+    uint32_t target_dur;  /* +0x10 */
+    uint32_t target_endTime;  /* +0x14 */
+    uint16_t target_vocals;  /* +0x18 */
+};
+
+struct Dict {  /* 140 bytes in the original */
+    struct Dict *nextDict;  /* +0x0 */
+    uint32_t version;  /* +0x4 */
+    uint32_t type;  /* +0x8 */
+    uint32_t wordCount;  /* +0xc */
+    uint32_t hash[27];  /* +0x10 */
+    unsigned char *words;  /* +0x7c */
+    IndexEntry *index;  /* +0x80 */
+    uint32_t flags;  /* +0x84 */
+    uint32_t data[1];  /* +0x88 */
+};
+
 struct WaveDef {  /* 24 bytes in the original */
     char waveName[16];  /* +0x0 */
     int32_t waveOffset;  /* +0x10 */
@@ -1180,6 +1243,29 @@ VW_LAYOUT_ASSERT(offsetof(struct REVERBCONFIG, m_pfltLeftDelay) == 8, "REVERBCON
 VW_LAYOUT_ASSERT(offsetof(struct REVERBCONFIG, m_pfltDBLeft) == 24, "REVERBCONFIG.m_pfltDBLeft");
 VW_LAYOUT_ASSERT(offsetof(struct REVERBCONFIG, m_pfltRightDelay) == 40, "REVERBCONFIG.m_pfltRightDelay");
 VW_LAYOUT_ASSERT(offsetof(struct REVERBCONFIG, m_pfltDBRight) == 56, "REVERBCONFIG.m_pfltDBRight");
+VW_LAYOUT_ASSERT(sizeof(struct PhonSyllableRec) == 12, "PhonSyllableRec size");
+VW_LAYOUT_ASSERT(offsetof(struct PhonSyllableRec, syllStr) == 0, "PhonSyllableRec.syllStr");
+VW_LAYOUT_ASSERT(offsetof(struct PhonSyllableRec, syllLen) == 8, "PhonSyllableRec.syllLen");
+VW_LAYOUT_ASSERT(sizeof(struct ConvertTextRec) == 272, "ConvertTextRec size");
+VW_LAYOUT_ASSERT(offsetof(struct ConvertTextRec, text_Input) == 0, "ConvertTextRec.text_Input");
+VW_LAYOUT_ASSERT(offsetof(struct ConvertTextRec, textLen_Input) == 16, "ConvertTextRec.textLen_Input");
+VW_LAYOUT_ASSERT(offsetof(struct ConvertTextRec, syllables_Result) == 20, "ConvertTextRec.syllables_Result");
+VW_LAYOUT_ASSERT(offsetof(struct ConvertTextRec, phon_Result) == 24, "ConvertTextRec.phon_Result");
+VW_LAYOUT_ASSERT(offsetof(struct ConvertTextRec, hasAlt_Result) == 144, "ConvertTextRec.hasAlt_Result");
+VW_LAYOUT_ASSERT(offsetof(struct ConvertTextRec, alt_Syllables_Result) == 148, "ConvertTextRec.alt_Syllables_Result");
+VW_LAYOUT_ASSERT(offsetof(struct ConvertTextRec, alt_Phon_Result) == 152, "ConvertTextRec.alt_Phon_Result");
+VW_LAYOUT_ASSERT(sizeof(struct FEToken) == 180, "FEToken size");
+VW_LAYOUT_ASSERT(offsetof(struct FEToken, tokStr) == 0, "FEToken.tokStr");
+VW_LAYOUT_ASSERT(offsetof(struct FEToken, tokLen) == 38, "FEToken.tokLen");
+VW_LAYOUT_ASSERT(offsetof(struct FEToken, phonStr) == 40, "FEToken.phonStr");
+VW_LAYOUT_ASSERT(offsetof(struct FEToken, phonHold) == 101, "FEToken.phonHold");
+VW_LAYOUT_ASSERT(offsetof(struct FEToken, bufOffset) == 164, "FEToken.bufOffset");
+VW_LAYOUT_ASSERT(offsetof(struct FEToken, inDict) == 168, "FEToken.inDict");
+VW_LAYOUT_ASSERT(offsetof(struct FEToken, inMorph) == 170, "FEToken.inMorph");
+VW_LAYOUT_ASSERT(offsetof(struct FEToken, hasAlt) == 172, "FEToken.hasAlt");
+VW_LAYOUT_ASSERT(offsetof(struct FEToken, altChoice) == 174, "FEToken.altChoice");
+VW_LAYOUT_ASSERT(offsetof(struct FEToken, suffix) == 176, "FEToken.suffix");
+VW_LAYOUT_ASSERT(offsetof(struct FEToken, addFlags) == 178, "FEToken.addFlags");
 VW_LAYOUT_ASSERT(sizeof(struct WaveDef) == 24, "WaveDef size");
 VW_LAYOUT_ASSERT(offsetof(struct WaveDef, waveName) == 0, "WaveDef.waveName");
 VW_LAYOUT_ASSERT(offsetof(struct WaveDef, waveOffset) == 16, "WaveDef.waveOffset");

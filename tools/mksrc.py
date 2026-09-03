@@ -158,8 +158,8 @@ def reverb():
             continue
         # the original breaks into the debugger if a delay pointer overruns;
         # the check cannot fire (the pointers are wrapped just above it)
-        if ln.strip() == 'DebugStr();':
-            ln = ln.replace('DebugStr();', '/* DebugStr(); -- cannot happen */')
+        if ln.strip().startswith('DebugStr('):
+            ln = ln[:len(ln) - len(ln.lstrip())] + '/* DebugStr(...); -- cannot happen */'
         ln = ln.replace('NewPtrClear(', 'calloc(1, ').replace('DisposePtr(', 'free(')
         ln = ln.replace('static float DecibelToInternalVol', 'float DecibelToInternalVol')
         ln = ln.replace('static void Reverberator_Init', 'void Reverberator_Init')

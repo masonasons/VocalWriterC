@@ -19,6 +19,7 @@ from stabs import CEmitter, resolve                        # noqa: E402
 
 # structs the port needs, by tag; their by-value members are pulled in too
 ROOTS = ['formantVar', 'synthVars', 'voiceData', 'ControlBlock', 'Frame', 'shellVar', 'REVERBCONFIG',
+         'ConvertTextRec', 'FEToken', 'MIDI_Event', 'MIDI_Item', 'Dict',
          'WaveDef', 'SeqInfo', 'TrackInfo']
 
 
@@ -163,7 +164,8 @@ def header():
     known = {'rShort', 'rLong', 'rUSC', 'rUSShort', 'mFloat', 'Fixed', 'SInt32',
              'SInt16', 'UInt32', 'UInt16', 'UInt8', 'OSErr', 'Ptr', 'Handle',
              'formantVarPtr', 'voiceDataPtr', 'synthVarsPtr', 'FramePtr',
-             'WaveDefPtr', 'SeqInfoPtr', '_i_CvtSMFProg_Ptr', 'shellVarPtr'}
+             'WaveDefPtr', 'SeqInfoPtr', '_i_CvtSMFProg_Ptr', 'shellVarPtr',
+             'FETokenPtr', 'ConvertTextRecPtr', 'MIDI_EventPtr', 'MIDI_ItemPtr'}
     known |= {n for n, _, _ in emitted}
     stubs = []
     for name, t, u in emitted:
@@ -190,6 +192,10 @@ def header():
     out.append('typedef SeqInfo *SeqInfoPtr;')
     out.append('typedef shellVar *shellVarPtr;')
     out.append('typedef void (*_i_CvtSMFProg_Ptr)(void);')
+    out.append('typedef FEToken *FETokenPtr;')
+    out.append('typedef ConvertTextRec *ConvertTextRecPtr;')
+    out.append('typedef MIDI_Event *MIDI_EventPtr;')
+    out.append('typedef MIDI_Item *MIDI_ItemPtr;')
     out.append('')
     for name, t, u in emitted:
         e = em[u.base]
