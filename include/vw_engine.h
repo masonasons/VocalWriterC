@@ -174,6 +174,7 @@ int16_t Reverberator_Process(synthVarsPtr xx, int16_t onlyOneFrame);
 void Reverb_Demux16(float *psLeft, float *psRight, int16_t *psSource, int32_t dwSamples);
 void Reverb_Copy16_16(float *psDest, float *psSource, int32_t dwSamples, float rVolume);
 void Reverb_Mix16_16(float *psDest, float *psSource, int32_t dwSamples, float rVolume);
+void Reverb_Mux16(int16_t *psDest, float *psLeft, float *psRight, int32_t dwSamples);
 
 /* -- Macintosh.c: the shared tables ---------------------------------------- */
 
@@ -260,6 +261,7 @@ void HLock(Handle h);
 void HUnlock(Handle h);
 int16_t MemError(void);
 void DebugStr(const char *s);
+void BlockMove(const void *src, void *dst, int32_t n);
 int16_t SetFPos(int16_t refNum, int16_t posMode, int32_t posOff);
 int16_t FSRead(int16_t refNum, int32_t *count, void *buf);
 /* the File Manager works over files loaded into memory: returns a refNum */
@@ -270,6 +272,28 @@ extern int vw_shim_fill;                /* tests: NewPtr fill byte, or -1 */
 void vw_shim_flush_deferred(void);
 extern int vw_shim_overruns;            /* blocks found overrun when freed */
 
+/* -- Mac OS calls the sequencer glue makes (src/synthglue.c) --------------- */
+OSErr InitSynth(void);
+extern int16_t g_instanceCount;
+uint32_t SetA5(uint32_t a5);
+void Microseconds(UnsignedWide *now);
+int16_t InsTime(void *task);
+int16_t RmvTime(void *task);
+int16_t PrimeTime(void *task, int32_t count);
+int16_t DTInstall(void *task);
+int16_t SndNewChannel(void *chan, int16_t synth, int32_t init, void *userRoutine);
+int16_t SndDisposeChannel(void *chan, int16_t quietNow);
+int16_t SndDoImmediate(void *chan, void *cmd);
+int16_t SndDoCommand(void *chan, void *cmd, int16_t noWait);
+int16_t Gestalt(uint32_t selector, int32_t *response);
+void *NewTimerUPP(void *proc);
+void *NewSndCallBackUPP(void *proc);
+void *NewDeferredTaskUPP(void *proc);
+void *GetResource(uint32_t type, int16_t id);
+void DetachResource(void *h);
+void NumToString(int32_t n, unsigned char *str);
+
 #include "vw_frontend.h"
+#include "vw_synth.h"
 
 #endif /* VW_ENGINE_H */

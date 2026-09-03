@@ -306,7 +306,7 @@ void Reverb_Mix16_16(float *psDest, float *psSource, int32_t dwSamples, float rV
 }
 
 /* Music.c:2723  (0x85fac) */
-static void Reverb_Mux16(int16_t *psDest, float *psLeft, float *psRight, int32_t dwSamples)
+void Reverb_Mux16(int16_t *psDest, float *psLeft, float *psRight, int32_t dwSamples)
 {
     while (dwSamples != 0) {
         (*psDest) = FTOI(*psLeft);

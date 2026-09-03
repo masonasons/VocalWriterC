@@ -81,7 +81,4 @@ int16_t Collect_Phons(synthVarsPtr xx);
 void TunePhons(synthVarsPtr xx);
 int16_t AdjustBoundryPhons(synthVarsPtr xx, unsigned char *targetVocals, unsigned char *targetTrack, int32_t startTime, int32_t endTime, int32_t flags);
 
-/* Music.c */
-int16_t GetNextTrackEvent(MIDI_EventPtr me, int16_t trackNum);
-
 #endif /* VW_FRONTEND_H */

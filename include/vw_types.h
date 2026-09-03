@@ -19,6 +19,7 @@ typedef unsigned char UInt8;
 typedef int16_t OSErr;
 typedef char *Ptr;
 typedef char **Handle;
+typedef unsigned char Str255[256];
 
 typedef struct ControlBlock ControlBlock;
 typedef struct Frame Frame;
@@ -47,40 +48,48 @@ typedef struct ConvertTextRec ConvertTextRec;
 typedef struct FEToken FEToken;
 typedef struct MIDI_Event MIDI_Event;
 typedef struct Dict Dict;
+typedef struct PlayRec PlayRec;
+typedef struct InstDef InstDef;
+typedef struct WaveListDef WaveListDef;
+typedef struct SeqHeader SeqHeader;
+typedef struct SeqEvent SeqEvent;
+typedef struct Convert_Event Convert_Event;
+typedef struct Expand_SMF_Rec Expand_SMF_Rec;
+typedef struct E_TrackEditInfo E_TrackEditInfo;
+typedef struct QElem QElem;
+typedef struct MsgRec MsgRec;
 typedef struct WaveDef WaveDef;
 typedef struct TrackInfo TrackInfo;
 typedef struct SeqInfo SeqInfo;
 typedef uint32_t UnsignedFixed;
 typedef Float80 extended80;
-typedef void *QElemPtr;
-typedef void (*DeferredTaskUPP)(void);
-typedef void (*DeferredTaskProcPtr)(void);
-typedef void (*TimerUPP)(void);
-typedef void (*TimerProcPtr)(void);
+typedef void (*DeferredTaskUPP)(int32_t dtParam);
+typedef void (*DeferredTaskProcPtr)(int32_t dtParam);
+typedef void (*TimerUPP)(int32_t data, int32_t refCon);
+typedef void (*TimerProcPtr)(int32_t data, int32_t refCon);
 typedef void *SndChannelPtr;
-typedef void (*SndCallBackUPP)(void);
-typedef void (*SndCallBackProcPtr)(void);
-typedef void (*SeqErrorUPP)(void);
-typedef void (*SeqErrorProcPtr)(void);
-typedef void (*SeqItemUPP)(void);
-typedef void (*SeqItemProcPtr)(void);
-typedef void (*SeqMarkUPP)(void);
-typedef void (*SeqMarkProcPtr)(void);
-typedef void (*TempoUPP)(void);
-typedef void (*TempoProcPtr)(void);
-typedef void (*BeatUPP)(void);
-typedef void (*BeatProcPtr)(void);
-typedef void (*SeqDoneUPP)(void);
-typedef void (*SeqDoneProcPtr)(void);
-typedef void (*MeterUPP)(void);
-typedef void (*MeterProcPtr)(void);
-typedef void (*OverloadUPP)(void);
-typedef void (*OverloadProcPtr)(void);
-typedef void (*KaraUPP)(void);
-typedef void (*KaraProcPtr)(void);
-typedef void *TMinfoPtr;
-typedef void (*OMSOutUPP)(void);
-typedef void (*OMSOutProcPtr)(void);
+typedef void (*SndCallBackUPP)(void *chan, void *cmd);
+typedef void (*SndCallBackProcPtr)(void *chan, void *cmd);
+typedef void (*SeqErrorUPP)(int32_t refCon, int16_t errorCode, uint32_t where);
+typedef void (*SeqErrorProcPtr)(int32_t refCon, int16_t errorCode, uint32_t where);
+typedef void (*SeqItemUPP)(int32_t refCon, uint32_t where);
+typedef void (*SeqItemProcPtr)(int32_t refCon, uint32_t where);
+typedef void (*SeqMarkUPP)(int32_t refCon, uint32_t where);
+typedef void (*SeqMarkProcPtr)(int32_t refCon, uint32_t where);
+typedef void (*TempoUPP)(int32_t tempo, int32_t refCon);
+typedef void (*TempoProcPtr)(int32_t tempo, int32_t refCon);
+typedef void (*BeatUPP)(int32_t clock, int32_t refCon);
+typedef void (*BeatProcPtr)(int32_t clock, int32_t refCon);
+typedef void (*SeqDoneUPP)(int32_t refCon);
+typedef void (*SeqDoneProcPtr)(int32_t refCon);
+typedef void (*MeterUPP)(int32_t maxL, int32_t maxR, int32_t refCon);
+typedef void (*MeterProcPtr)(int32_t maxL, int32_t maxR, int32_t refCon);
+typedef void (*OverloadUPP)(int32_t refCon);
+typedef void (*OverloadProcPtr)(int32_t refCon);
+typedef void (*KaraUPP)(int32_t index, int32_t refCon);
+typedef void (*KaraProcPtr)(int32_t index, int32_t refCon);
+typedef void (*OMSOutUPP)(void *buffer, int32_t count);
+typedef void (*OMSOutProcPtr)(void *buffer, int32_t count);
 typedef void *IndexEntry;
 typedef formantVar *formantVarPtr;
 typedef voiceData *voiceDataPtr;
@@ -89,11 +98,40 @@ typedef Frame *FramePtr;
 typedef WaveDef *WaveDefPtr;
 typedef SeqInfo *SeqInfoPtr;
 typedef shellVar *shellVarPtr;
-typedef void (*_i_CvtSMFProg_Ptr)(void);
+typedef void (*_i_CvtSMFProg_Ptr)(int32_t what, intptr_t a, int32_t b, int32_t refCon);
 typedef FEToken *FETokenPtr;
 typedef ConvertTextRec *ConvertTextRecPtr;
 typedef MIDI_Event *MIDI_EventPtr;
 typedef MIDI_Item *MIDI_ItemPtr;
+typedef ControlBlock *ControlBlockPtr;
+typedef VCB_Gen *VCB_GenPtr;
+typedef VoiceCtrlBlock *VoiceCtrlBlockPtr;
+typedef DOC_Regs *DOC_RegsPtr;
+typedef REVERBMOD *REVERBMODPtr;
+typedef MIDI_Dur_Type *MIDI_Dur_TypePtr;
+typedef WaveList *WaveListPtr;
+typedef OCB *OCBPtr;
+typedef Float80 *Float80Ptr;
+typedef ExtSoundHeader *ExtSoundHeaderPtr;
+typedef SndCommand *SndCommandPtr;
+typedef DeferredTask *DeferredTaskPtr;
+typedef UnsignedWide *UnsignedWidePtr;
+typedef TMTask *TMTaskPtr;
+typedef TMinfo *TMinfoPtr;
+typedef REVERBCONFIG *REVERBCONFIGPtr;
+typedef PhonSyllableRec *PhonSyllableRecPtr;
+typedef Dict *DictPtr;
+typedef PlayRec *PlayRecPtr;
+typedef InstDef *InstDefPtr;
+typedef WaveListDef *WaveListDefPtr;
+typedef SeqHeader *SeqHeaderPtr;
+typedef SeqEvent *SeqEventPtr;
+typedef Convert_Event *Convert_EventPtr;
+typedef Expand_SMF_Rec *Expand_SMF_RecPtr;
+typedef E_TrackEditInfo *E_TrackEditInfoPtr;
+typedef QElem *QElemPtr;
+typedef MsgRec *MsgRecPtr;
+typedef TrackInfo *TrackInfoPtr;
 
 struct ControlBlock {  /* 36 bytes in the original */
     int16_t curP_START_Targ;  /* +0x0 */
@@ -857,7 +895,8 @@ struct Float80 {  /* 10 bytes in the original */
     UInt16 man[4];  /* +0x2 */
 };
 
-struct ExtSoundHeader {  /* 66 bytes in the original */
+#pragma pack(push, 2)
+struct ExtSoundHeader {  /* 66 bytes in the original, 2-byte aligned */
     Ptr samplePtr;  /* +0x0 */
     uint32_t numChannels;  /* +0x4 */
     UnsignedFixed sampleRate;  /* +0x8 */
@@ -877,6 +916,7 @@ struct ExtSoundHeader {  /* 66 bytes in the original */
     uint32_t futureUse4;  /* +0x3c */
     UInt8 sampleArea[1];  /* +0x40 */
 };
+#pragma pack(pop)
 
 struct SndCommand {  /* 8 bytes in the original */
     uint16_t cmd;  /* +0x0 */
@@ -898,7 +938,8 @@ struct UnsignedWide {  /* 8 bytes in the original */
     UInt32 lo;  /* +0x4 */
 };
 
-struct TMTask {  /* 22 bytes in the original */
+#pragma pack(push, 2)
+struct TMTask {  /* 22 bytes in the original, 2-byte aligned */
     QElemPtr qLink;  /* +0x0 */
     int16_t qType;  /* +0x4 */
     TimerUPP tmAddr;  /* +0x6 */
@@ -906,6 +947,7 @@ struct TMTask {  /* 22 bytes in the original */
     int32_t tmWakeUp;  /* +0xe */
     int32_t tmReserved;  /* +0x12 */
 };
+#pragma pack(pop)
 
 struct TMinfo {  /* 36 bytes in the original */
     TMTask TimeMgrTask;  /* +0x0 */
@@ -1054,6 +1096,172 @@ struct Dict {  /* 140 bytes in the original */
     IndexEntry *index;  /* +0x80 */
     uint32_t flags;  /* +0x84 */
     uint32_t data[1];  /* +0x88 */
+};
+
+struct PlayRec {  /* 28 bytes in the original */
+    Ptr PbufStart;  /* +0x0 */
+    Ptr RbufStart;  /* +0x4 */
+    int32_t RbufLen;  /* +0x8 */
+    uint32_t theFlags;  /* +0xc */
+    int32_t ticksPerBeat;  /* +0x10 */
+    int32_t startBeat;  /* +0x14 */
+    int32_t polyphony;  /* +0x18 */
+};
+
+struct InstDef {  /* 68 bytes in the original */
+    unsigned char U_WLs;  /* +0x0 */
+    unsigned char U_Vsens;  /* +0x1 */
+    unsigned char U_PBend;  /* +0x2 */
+    unsigned char U_DecayKbd;  /* +0x3 */
+    unsigned char U_AtkVS;  /* +0x4 */
+    unsigned char U_AtkSlope;  /* +0x5 */
+    unsigned char U_EnvGain;  /* +0x6 */
+    unsigned char U_Atk;  /* +0x7 */
+    unsigned char U_Dky;  /* +0x8 */
+    unsigned char U_Sus;  /* +0x9 */
+    unsigned char U_Rel;  /* +0xa */
+    unsigned char U_vibFreq1;  /* +0xb */
+    unsigned char U_vibDepth1;  /* +0xc */
+    unsigned char U_vibDelay1;  /* +0xd */
+    unsigned char U_vibRamp1;  /* +0xe */
+    unsigned char U_vibFreq2;  /* +0xf */
+    unsigned char U_vibDepth2;  /* +0x10 */
+    unsigned char U_vibDelay2;  /* +0x11 */
+    unsigned char U_vibRamp2;  /* +0x12 */
+    unsigned char U_DUMMY;  /* +0x13 */
+    unsigned char U_Unused[16];  /* +0x14 */
+    int16_t U_WLRef[16];  /* +0x24 */
+};
+
+struct WaveListDef {  /* 20 bytes in the original */
+    unsigned char U_TopKey;  /* +0x0 */
+    unsigned char U_Alg;  /* +0x1 */
+    unsigned char U_Delay;  /* +0x2 */
+    unsigned char U_Detune;  /* +0x3 */
+    int16_t U_WaveRefA;  /* +0x4 */
+    unsigned char U_VolA;  /* +0x6 */
+    unsigned char U_OctA;  /* +0x7 */
+    unsigned char U_SemiA;  /* +0x8 */
+    unsigned char U_FineA;  /* +0x9 */
+    int16_t U_WaveRefB;  /* +0xa */
+    unsigned char U_VolB;  /* +0xc */
+    unsigned char U_OctB;  /* +0xd */
+    unsigned char U_SemiB;  /* +0xe */
+    unsigned char U_FineB;  /* +0xf */
+    unsigned char U_Unused[4];  /* +0x10 */
+};
+
+#pragma pack(push, 2)
+struct SeqHeader {  /* 758 bytes in the original, 2-byte aligned */
+    int32_t filetype;  /* +0x0 */
+    int32_t version;  /* +0x4 */
+    int32_t seqData;  /* +0x8 */
+    int16_t tempo;  /* +0xc */
+    int16_t bpm;  /* +0xe */
+    int16_t beatVal;  /* +0x10 */
+    int16_t ticks;  /* +0x12 */
+    int16_t numOfTracks;  /* +0x14 */
+    int16_t trackVol[32];  /* +0x16 */
+    int16_t trackPlay[32];  /* +0x56 */
+    int16_t trackMap[32];  /* +0x96 */
+    uint16_t pgmMap[128];  /* +0xd6 */
+    char bankName[32];  /* +0x1d6 */
+    char Copyright[256];  /* +0x1f6 */
+};
+#pragma pack(pop)
+
+struct SeqEvent {  /* 12 bytes in the original */
+    unsigned char timeHI;  /* +0x0 */
+    unsigned char timeMID;  /* +0x1 */
+    unsigned char timeLO;  /* +0x2 */
+    unsigned char chan;  /* +0x3 */
+    unsigned char cmd;  /* +0x4 */
+    unsigned char note;  /* +0x5 */
+    unsigned char vel;  /* +0x6 */
+    unsigned char durHI;  /* +0x7 */
+    unsigned char durMID;  /* +0x8 */
+    unsigned char durLO;  /* +0x9 */
+    unsigned char vocalsHI;  /* +0xa */
+    unsigned char vocalsLO;  /* +0xb */
+};
+
+struct Convert_Event {  /* 64 bytes in the original */
+    unsigned char *targetTrack;  /* +0x0 */
+    int32_t target_time;  /* +0x4 */
+    int32_t target_chan;  /* +0x8 */
+    int32_t target_cmd;  /* +0xc */
+    int32_t target_key;  /* +0x10 */
+    int32_t target_vol;  /* +0x14 */
+    int32_t target_dur;  /* +0x18 */
+    int32_t target_vocals;  /* +0x1c */
+    int32_t target_endTime;  /* +0x20 */
+    unsigned char *curEventPtr;  /* +0x24 */
+    int32_t endOfTrack;  /* +0x28 */
+    int32_t chanFilter;  /* +0x2c */
+    int32_t eventMask;  /* +0x30 */
+    int32_t maxKeyVal;  /* +0x34 */
+    int32_t minKeyVal;  /* +0x38 */
+    int32_t cntrlNum;  /* +0x3c */
+};
+
+struct Expand_SMF_Rec {  /* 1040 bytes in the original */
+    int32_t seqBufLen;  /* +0x0 */
+    int32_t workBufLen1;  /* +0x4 */
+    int32_t workBufLen2;  /* +0x8 */
+    int32_t workBufLen3;  /* +0xc */
+    Ptr seqBuf;  /* +0x10 */
+    Ptr workBuf1;  /* +0x14 */
+    Ptr workBuf2;  /* +0x18 */
+    Ptr workBuf3;  /* +0x1c */
+    SeqHeaderPtr o_SeqHeader;  /* +0x20 */
+    TrackInfoPtr o_TrackInfos[32];  /* +0x24 */
+    Ptr o_TrackDataPtr[32];  /* +0xa4 */
+    int32_t o_TrackDataLen[32];  /* +0x124 */
+    int32_t trackDataLen[32];  /* +0x1a4 */
+    int32_t trackChannels[32];  /* +0x224 */
+    int32_t trackChannels_I[32];  /* +0x2a4 */
+    int16_t tracksToSep[32];  /* +0x324 */
+    int16_t tracksToMerge[32];  /* +0x364 */
+    int16_t numToMerge;  /* +0x3a4 */
+    int32_t mergedChannels;  /* +0x3a8 */
+    int16_t totalTracks;  /* +0x3ac */
+    int16_t freeTracks[32];  /* +0x3ae */
+    int16_t channelDup;  /* +0x3ee */
+    int16_t channelUsage[16];  /* +0x3f0 */
+};
+
+struct E_TrackEditInfo {  /* 64 bytes in the original */
+    Ptr srcPtr1;  /* +0x0 */
+    Ptr srcPtr2;  /* +0x4 */
+    Ptr destPtr;  /* +0x8 */
+    int32_t chanFilter;  /* +0xc */
+    int32_t eventMask;  /* +0x10 */
+    int32_t maxKeyVal;  /* +0x14 */
+    int32_t minKeyVal;  /* +0x18 */
+    int32_t cntrlNum;  /* +0x1c */
+    int32_t seqTrackStartTick;  /* +0x20 */
+    int32_t seqTrackEndTick;  /* +0x24 */
+    int32_t oLimit;  /* +0x28 */
+    int32_t oLimit1;  /* +0x2c */
+    int32_t trackLen;  /* +0x30 */
+    int32_t trackLen1;  /* +0x34 */
+    int32_t count1;  /* +0x38 */
+    int32_t count2;  /* +0x3c */
+};
+
+struct QElem {  /* 8 bytes in the original */
+    struct QElem *qLink;  /* +0x0 */
+    int16_t qType;  /* +0x4 */
+    int16_t qData[1];  /* +0x6 */
+};
+
+struct MsgRec {  /* 16 bytes in the original */
+    int16_t type;  /* +0x0 */
+    int16_t status;  /* +0x2 */
+    int16_t c1;  /* +0x4 */
+    int16_t c2;  /* +0x6 */
+    int16_t metaType;  /* +0x8 */
+    int32_t metaMsg;  /* +0xc */
 };
 
 struct WaveDef {  /* 24 bytes in the original */
@@ -1266,6 +1474,80 @@ VW_LAYOUT_ASSERT(offsetof(struct FEToken, hasAlt) == 172, "FEToken.hasAlt");
 VW_LAYOUT_ASSERT(offsetof(struct FEToken, altChoice) == 174, "FEToken.altChoice");
 VW_LAYOUT_ASSERT(offsetof(struct FEToken, suffix) == 176, "FEToken.suffix");
 VW_LAYOUT_ASSERT(offsetof(struct FEToken, addFlags) == 178, "FEToken.addFlags");
+VW_LAYOUT_ASSERT(sizeof(struct InstDef) == 68, "InstDef size");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_WLs) == 0, "InstDef.U_WLs");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_Vsens) == 1, "InstDef.U_Vsens");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_PBend) == 2, "InstDef.U_PBend");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_DecayKbd) == 3, "InstDef.U_DecayKbd");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_AtkVS) == 4, "InstDef.U_AtkVS");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_AtkSlope) == 5, "InstDef.U_AtkSlope");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_EnvGain) == 6, "InstDef.U_EnvGain");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_Atk) == 7, "InstDef.U_Atk");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_Dky) == 8, "InstDef.U_Dky");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_Sus) == 9, "InstDef.U_Sus");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_Rel) == 10, "InstDef.U_Rel");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_vibFreq1) == 11, "InstDef.U_vibFreq1");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_vibDepth1) == 12, "InstDef.U_vibDepth1");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_vibDelay1) == 13, "InstDef.U_vibDelay1");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_vibRamp1) == 14, "InstDef.U_vibRamp1");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_vibFreq2) == 15, "InstDef.U_vibFreq2");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_vibDepth2) == 16, "InstDef.U_vibDepth2");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_vibDelay2) == 17, "InstDef.U_vibDelay2");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_vibRamp2) == 18, "InstDef.U_vibRamp2");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_DUMMY) == 19, "InstDef.U_DUMMY");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_Unused) == 20, "InstDef.U_Unused");
+VW_LAYOUT_ASSERT(offsetof(struct InstDef, U_WLRef) == 36, "InstDef.U_WLRef");
+VW_LAYOUT_ASSERT(sizeof(struct WaveListDef) == 20, "WaveListDef size");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_TopKey) == 0, "WaveListDef.U_TopKey");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_Alg) == 1, "WaveListDef.U_Alg");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_Delay) == 2, "WaveListDef.U_Delay");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_Detune) == 3, "WaveListDef.U_Detune");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_WaveRefA) == 4, "WaveListDef.U_WaveRefA");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_VolA) == 6, "WaveListDef.U_VolA");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_OctA) == 7, "WaveListDef.U_OctA");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_SemiA) == 8, "WaveListDef.U_SemiA");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_FineA) == 9, "WaveListDef.U_FineA");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_WaveRefB) == 10, "WaveListDef.U_WaveRefB");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_VolB) == 12, "WaveListDef.U_VolB");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_OctB) == 13, "WaveListDef.U_OctB");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_SemiB) == 14, "WaveListDef.U_SemiB");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_FineB) == 15, "WaveListDef.U_FineB");
+VW_LAYOUT_ASSERT(offsetof(struct WaveListDef, U_Unused) == 16, "WaveListDef.U_Unused");
+VW_LAYOUT_ASSERT(sizeof(struct SeqHeader) == 758, "SeqHeader size");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, filetype) == 0, "SeqHeader.filetype");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, version) == 4, "SeqHeader.version");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, seqData) == 8, "SeqHeader.seqData");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, tempo) == 12, "SeqHeader.tempo");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, bpm) == 14, "SeqHeader.bpm");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, beatVal) == 16, "SeqHeader.beatVal");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, ticks) == 18, "SeqHeader.ticks");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, numOfTracks) == 20, "SeqHeader.numOfTracks");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, trackVol) == 22, "SeqHeader.trackVol");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, trackPlay) == 86, "SeqHeader.trackPlay");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, trackMap) == 150, "SeqHeader.trackMap");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, pgmMap) == 214, "SeqHeader.pgmMap");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, bankName) == 470, "SeqHeader.bankName");
+VW_LAYOUT_ASSERT(offsetof(struct SeqHeader, Copyright) == 502, "SeqHeader.Copyright");
+VW_LAYOUT_ASSERT(sizeof(struct SeqEvent) == 12, "SeqEvent size");
+VW_LAYOUT_ASSERT(offsetof(struct SeqEvent, timeHI) == 0, "SeqEvent.timeHI");
+VW_LAYOUT_ASSERT(offsetof(struct SeqEvent, timeMID) == 1, "SeqEvent.timeMID");
+VW_LAYOUT_ASSERT(offsetof(struct SeqEvent, timeLO) == 2, "SeqEvent.timeLO");
+VW_LAYOUT_ASSERT(offsetof(struct SeqEvent, chan) == 3, "SeqEvent.chan");
+VW_LAYOUT_ASSERT(offsetof(struct SeqEvent, cmd) == 4, "SeqEvent.cmd");
+VW_LAYOUT_ASSERT(offsetof(struct SeqEvent, note) == 5, "SeqEvent.note");
+VW_LAYOUT_ASSERT(offsetof(struct SeqEvent, vel) == 6, "SeqEvent.vel");
+VW_LAYOUT_ASSERT(offsetof(struct SeqEvent, durHI) == 7, "SeqEvent.durHI");
+VW_LAYOUT_ASSERT(offsetof(struct SeqEvent, durMID) == 8, "SeqEvent.durMID");
+VW_LAYOUT_ASSERT(offsetof(struct SeqEvent, durLO) == 9, "SeqEvent.durLO");
+VW_LAYOUT_ASSERT(offsetof(struct SeqEvent, vocalsHI) == 10, "SeqEvent.vocalsHI");
+VW_LAYOUT_ASSERT(offsetof(struct SeqEvent, vocalsLO) == 11, "SeqEvent.vocalsLO");
+VW_LAYOUT_ASSERT(sizeof(struct MsgRec) == 16, "MsgRec size");
+VW_LAYOUT_ASSERT(offsetof(struct MsgRec, type) == 0, "MsgRec.type");
+VW_LAYOUT_ASSERT(offsetof(struct MsgRec, status) == 2, "MsgRec.status");
+VW_LAYOUT_ASSERT(offsetof(struct MsgRec, c1) == 4, "MsgRec.c1");
+VW_LAYOUT_ASSERT(offsetof(struct MsgRec, c2) == 6, "MsgRec.c2");
+VW_LAYOUT_ASSERT(offsetof(struct MsgRec, metaType) == 8, "MsgRec.metaType");
+VW_LAYOUT_ASSERT(offsetof(struct MsgRec, metaMsg) == 12, "MsgRec.metaMsg");
 VW_LAYOUT_ASSERT(sizeof(struct WaveDef) == 24, "WaveDef size");
 VW_LAYOUT_ASSERT(offsetof(struct WaveDef, waveName) == 0, "WaveDef.waveName");
 VW_LAYOUT_ASSERT(offsetof(struct WaveDef, waveOffset) == 16, "WaveDef.waveOffset");

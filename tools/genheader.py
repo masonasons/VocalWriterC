@@ -15,11 +15,15 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from macho import Binary                                   # noqa: E402
-from stabs import CEmitter, resolve                        # noqa: E402
+from stabs import CEmitter, resolve, sizeof                # noqa: E402
 
 # structs the port needs, by tag; their by-value members are pulled in too
 ROOTS = ['formantVar', 'synthVars', 'voiceData', 'ControlBlock', 'Frame', 'shellVar', 'REVERBCONFIG',
          'ConvertTextRec', 'FEToken', 'MIDI_Event', 'MIDI_Item', 'Dict',
+         'PlayRec', 'VoiceCtrlBlock', 'VCB_Gen', 'OCB', 'DOC_Regs', 'InstDef', 'WaveListDef',
+         'WaveList', 'MIDI_Dur_Type', 'SeqHeader', 'SeqEvent', 'Convert_Event', 'Expand_SMF_Rec',
+         'E_TrackEditInfo', 'TMinfo', 'TMTask', 'SndCommand', 'ExtSoundHeader', 'DeferredTask',
+         'UnsignedWide', 'QElem', 'MsgRec',
          'WaveDef', 'SeqInfo', 'TrackInfo']
 
 
@@ -105,7 +109,8 @@ def referenced_typedefs(t):
 def collect(b):
     units = {u.base: u for u in b.units}
     tags = {}
-    for uname in ('Speech.c', 'Macintosh.c', 'Music.c', 'ParsePhons.c', 'OrthToPhon.c'):
+    for uname in ('Speech.c', 'Macintosh.c', 'Music.c', 'ParsePhons.c', 'OrthToPhon.c',
+                  'ConvertSMF.c', 'ExpandTracks.c'):
         u = units.get(uname)
         if u is None:
             continue
@@ -113,6 +118,11 @@ def collect(b):
             kind, name = key.split(':', 1)
             if kind == 'tag' and t.kind in ('struct', 'union') and name not in tags:
                 tags[name] = (t, u)
+            if kind == 'typedef' and name not in tags:
+                r = resolve(t)
+                if r.kind in ('struct', 'union') and (not r.name or r.name.startswith('anon_')):
+                    r.name = name             # give the anonymous struct the typedef's name
+                    tags[name] = (r, u)
     emitted = []
     seen = set()
 
@@ -128,6 +138,61 @@ def collect(b):
     for r in ROOTS:
         visit(r)
     return emitted
+
+
+#: The callback types, with the arguments the engine passes (see
+#: INDIRECT_PROTOS in lift.py); STABS records them without parameters.
+FUNC_PROTOS = {
+    '_i_CvtSMFProg_Ptr': 'void (*_i_CvtSMFProg_Ptr)(int32_t what, intptr_t a, int32_t b, int32_t refCon)',
+    'SeqDoneProcPtr': 'void (*SeqDoneProcPtr)(int32_t refCon)',
+    'OverloadProcPtr': 'void (*OverloadProcPtr)(int32_t refCon)',
+    'MeterProcPtr': 'void (*MeterProcPtr)(int32_t maxL, int32_t maxR, int32_t refCon)',
+    'BeatProcPtr': 'void (*BeatProcPtr)(int32_t clock, int32_t refCon)',
+    'TempoProcPtr': 'void (*TempoProcPtr)(int32_t tempo, int32_t refCon)',
+    'KaraProcPtr': 'void (*KaraProcPtr)(int32_t index, int32_t refCon)',
+    'SeqErrorProcPtr': 'void (*SeqErrorProcPtr)(int32_t refCon, int16_t errorCode, uint32_t where)',
+    'SeqItemProcPtr': 'void (*SeqItemProcPtr)(int32_t refCon, uint32_t where)',
+    'SeqMarkProcPtr': 'void (*SeqMarkProcPtr)(int32_t refCon, uint32_t where)',
+    'TimerProcPtr': 'void (*TimerProcPtr)(int32_t data, int32_t refCon)',
+    'OMSOutProcPtr': 'void (*OMSOutProcPtr)(void *buffer, int32_t count)',
+    'DeferredTaskProcPtr': 'void (*DeferredTaskProcPtr)(int32_t dtParam)',
+    'SndCallBackProcPtr': 'void (*SndCallBackProcPtr)(void *chan, void *cmd)',
+}
+# the UPP names carry the same signatures
+for _n in list(FUNC_PROTOS):
+    if _n.endswith('ProcPtr'):
+        FUNC_PROTOS[_n[:-7] + 'UPP'] = FUNC_PROTOS[_n].replace('(*' + _n + ')', '(*' + _n[:-7] + 'UPP)')
+
+
+
+def with_protos(lines):
+    out = []
+    for ln in lines:
+        for name, sig in FUNC_PROTOS.items():
+            if ln == 'typedef void (*%s)(void);' % name:
+                ln = 'typedef %s;' % sig
+        out.append(ln)
+    return out
+
+
+def alignment(t):
+    r = resolve(t)
+    if r.kind in ('struct', 'union'):
+        return max([alignment(ft) for _n, ft, _o, _b in r.fields] or [1])
+    if r.kind == 'array':
+        return alignment(r.target)
+    if r.kind == 'ptr':
+        return 4
+    return min(r.size or 1, 4) if r.size else 1
+
+
+def natural_size(t):
+    """The struct's size under natural (4-byte) alignment, as PowerPC lays it out."""
+    end = 0
+    for _n, ft, bitoff, _b in t.fields:
+        end = max(end, bitoff // 8 + (sizeof(ft) or 0))
+    a = alignment(t)
+    return (end + a - 1) // a * a
 
 
 def header():
@@ -156,6 +221,7 @@ def header():
     out.append('typedef int16_t OSErr;')
     out.append('typedef char *Ptr;')
     out.append('typedef char **Handle;')
+    out.append('typedef unsigned char Str255[256];')
     out.append('')
     for name, t, u in emitted:
         out.append('typedef struct %s %s;' % (name, name))
@@ -165,13 +231,13 @@ def header():
              'SInt16', 'UInt32', 'UInt16', 'UInt8', 'OSErr', 'Ptr', 'Handle',
              'formantVarPtr', 'voiceDataPtr', 'synthVarsPtr', 'FramePtr',
              'WaveDefPtr', 'SeqInfoPtr', '_i_CvtSMFProg_Ptr', 'shellVarPtr',
-             'FETokenPtr', 'ConvertTextRecPtr', 'MIDI_EventPtr', 'MIDI_ItemPtr'}
+             'FETokenPtr', 'ConvertTextRecPtr', 'MIDI_EventPtr', 'MIDI_ItemPtr', 'Str255'}
     known |= {n for n, _, _ in emitted}
     stubs = []
     for name, t, u in emitted:
         for tn, tt in referenced_typedefs(t):
-            if tn in known or tn in [s[0] for s in stubs]:
-                continue
+            if tn in known or tn in [s[0] for s in stubs] or (tn.endswith('Ptr') and tn[:-3] in known):
+                continue          # pointer typedefs of emitted structs come later
             r = resolve(tt)
             if r.kind == 'ptr':
                 stubs.append((tn, 'typedef void *%s;' % tn if resolve(r.target).kind != 'func'
@@ -182,6 +248,8 @@ def header():
                 stubs.append((tn, 'typedef %s %s;' % ('float' if r.size == 4 else 'double', tn)))
             elif r.kind in ('struct', 'union') and r.name in known:
                 stubs.append((tn, 'typedef %s %s;' % (r.name, tn)))
+            elif r.kind == 'array':
+                stubs.append((tn, 'typedef %s;' % em[u.base].declare(r, tn)))
     for tn, decl in stubs:
         out.append(decl)
     out.append('typedef formantVar *formantVarPtr;')
@@ -191,17 +259,28 @@ def header():
     out.append('typedef WaveDef *WaveDefPtr;')
     out.append('typedef SeqInfo *SeqInfoPtr;')
     out.append('typedef shellVar *shellVarPtr;')
-    out.append('typedef void (*_i_CvtSMFProg_Ptr)(void);')
+    out.append('typedef void (*_i_CvtSMFProg_Ptr)(int32_t what, intptr_t a, int32_t b, int32_t refCon);')
     out.append('typedef FEToken *FETokenPtr;')
     out.append('typedef ConvertTextRec *ConvertTextRecPtr;')
     out.append('typedef MIDI_Event *MIDI_EventPtr;')
     out.append('typedef MIDI_Item *MIDI_ItemPtr;')
+    explicit = {'formantVar', 'voiceData', 'synthVars', 'Frame', 'WaveDef', 'SeqInfo', 'shellVar',
+                'FEToken', 'ConvertTextRec', 'MIDI_Event', 'MIDI_Item'}
+    for name, t, u in emitted:
+        if name not in explicit and name + 'Ptr' not in [s[0] for s in stubs]:
+            out.append('typedef %s *%sPtr;' % (name, name))
     out.append('')
     for name, t, u in emitted:
         e = em[u.base]
-        out.append('struct %s {  /* %d bytes in the original */' % (name, t.size))
+        packed = natural_size(t) != t.size
+        if packed:
+            out.append('#pragma pack(push, 2)')
+        out.append('struct %s {  /* %d bytes in the original%s */'
+                   % (name, t.size, ', 2-byte aligned' if packed else ''))
         out.append(e.struct_body(t))
         out.append('};')
+        if packed:
+            out.append('#pragma pack(pop)')
         out.append('')
     out.append('#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L')
     out.append('#define VW_LAYOUT_ASSERT(cond, msg) _Static_assert(cond, msg)')
@@ -217,7 +296,7 @@ def header():
                        % (name, fname, bitoff // 8, name, fname))
     out.append('')
     out.append('#endif /* VW_TYPES_H */')
-    print('\n'.join(out))
+    print('\n'.join(with_protos(out)))
 
 
 def layout():

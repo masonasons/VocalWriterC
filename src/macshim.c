@@ -132,6 +132,12 @@ int16_t MemError(void)
 
 void DebugStr(const char *s) { (void)s; }
 
+void BlockMove(const void *src, void *dst, int32_t n)
+{
+    if (n > 0)
+        memmove(dst, src, (size_t)n);
+}
+
 /* -- the File Manager, over files in memory ----------------------------- */
 
 #define VW_MAX_FILES 8

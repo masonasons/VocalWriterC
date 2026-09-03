@@ -177,15 +177,18 @@ class Binary(object):
             elif nt == N_SLINE:
                 self.lines[v] = nd
 
-    def unit_of(self, name):
+    def unit_of(self, name, unit=None):
         for u in self.units:
+            if unit is not None and u.base != unit:
+                continue
             for f in u.funcs:
                 if f.name == name:
                     return u, f
         return None, None
 
-    def extent(self, name):
-        start = self.funcs[name]
+    def extent(self, name, start=None):
+        if start is None:
+            start = self.funcs[name]
         later = sorted(a for a in self.func_by_addr if a > start)
         end = later[0] if later else start + 0x4000
         text = [s for s in self.sections if s[1] == '__text'][0]

@@ -34,38 +34,39 @@ int16_t DecompressString(Ptr dest, unsigned char *src)
     w1 <<= 5;
     bits = 5;
     pass1 = 1;
-L_a0894:
-    if (bits <= 8) {
-        if (pass1 == 0) {
-            VW_ST16BE(dest, w1 + 15872);
-            if ((int8_t)*dest <= 64) {
-                if ((int8_t)*dest == 62) {
-                    (*dest) = 45;
-                } else if ((int8_t)*dest == 63) {
-                    (*dest) = 46;
-                } else {
-                    (*dest) = 39;
+    for (;;) {
+        if (bits <= 8) {
+            if (pass1 == 0) {
+                VW_ST16BE(dest, w1 + 15872);
+                if ((int8_t)*dest <= 64) {
+                    if ((int8_t)*dest == 62) {
+                        (*dest) = 45;
+                    } else if ((int8_t)*dest == 63) {
+                        (*dest) = 46;
+                    } else {
+                        (*dest) = 39;
+                    }
                 }
+            } else {
+                VW_ST16BE(dest, w1);
+                pass1 = 0;
             }
-        } else {
-            VW_ST16BE(dest, w1);
-            pass1 = 0;
+            dest++;
+            strLen--;
+            if (strLen == 0) {
+                return compBytes;
+            }
+            w1 = (uint8_t)w1;
+            w1 <<= 5;
+            bits += 5;
+            continue;
         }
-        dest++;
-        strLen--;
-        if (strLen == 0) {
-            return compBytes;
-        }
-        w1 = (uint8_t)w1;
-        w1 <<= 5;
-        bits += 5;
-        goto L_a0894;
+        bits -= 8;
+        w1 = (*src << bits) | w1;
+        src++;
+        compBytes++;
+        continue;
     }
-    bits -= 8;
-    w1 = (*src << bits) | w1;
-    src++;
-    compBytes++;
-    goto L_a0894;
     return compBytes;
 }
 

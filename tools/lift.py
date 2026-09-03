@@ -245,6 +245,38 @@ class Stmt(object):
 # the lifter proper
 
 
+#: What the engine passes when it calls back through a function pointer,
+#: by the pointer's typedef: (return tag, argument tags). Read off the
+#: registers each call site loads. The Mac OS UPP types resolve to these.
+INDIRECT_PROTOS = {
+    '_i_CvtSMFProg_Ptr': ('void', ['i32', 'i32', 'i32', 'i32']),   # what, a, b, refCon
+    'SeqDoneUPP': ('void', ['i32']),                # refCon
+    'SeqDoneProcPtr': ('void', ['i32']),
+    'OverloadUPP': ('void', ['i32']),               # refCon
+    'OverloadProcPtr': ('void', ['i32']),
+    'MeterUPP': ('void', ['i32', 'i32', 'i32']),    # maxL, maxR, refCon
+    'MeterProcPtr': ('void', ['i32', 'i32', 'i32']),
+    'BeatUPP': ('void', ['i32', 'i32']),            # clock, refCon
+    'BeatProcPtr': ('void', ['i32', 'i32']),
+    'TempoUPP': ('void', ['i32', 'i32']),           # tempo, refCon
+    'TempoProcPtr': ('void', ['i32', 'i32']),
+    'KaraUPP': ('void', ['i32', 'i32']),            # index, refCon
+    'KaraProcPtr': ('void', ['i32', 'i32']),
+    'SeqErrorUPP': ('void', ['i32', 'i16', 'u32']),   # refCon, errorCode, where
+    'SeqErrorProcPtr': ('void', ['i32', 'i16', 'u32']),
+    'SeqItemUPP': ('void', ['i32', 'u32']),         # refCon, where
+    'SeqItemProcPtr': ('void', ['i32', 'u32']),
+    'SeqMarkUPP': ('void', ['i32', 'u32']),         # refCon, where
+    'SeqMarkProcPtr': ('void', ['i32', 'u32']),
+    'TimerUPP': ('void', ['i32', 'i32']),           # data, refCon
+    'TimerProcPtr': ('void', ['i32', 'i32']),
+    'OMSOutUPP': ('void', ['ptr', 'i32']),          # buffer, count
+    'OMSOutProcPtr': ('void', ['ptr', 'i32']),
+    'DeferredTaskUPP': ('void', ['i32']),           # dtParam
+    'DeferredTaskProcPtr': ('void', ['i32']),
+}
+
+
 class Lifter(object):
     STUBS = {
         'pow': ('f64', ['f64', 'f64']), 'floor': ('f64', ['f64']),
@@ -252,6 +284,15 @@ class Lifter(object):
         'NewPtrClear': ('ptr', ['i32']), 'NewPtr': ('ptr', ['i32']),
         'DisposePtr': ('void', ['ptr']),
         'NewHandle': ('ptr', ['i32']), 'NewHandleClear': ('ptr', ['i32']),
+        # Mac OS the sequencer's glue talks to; src/synthglue.c stands in
+        'SetA5': ('u32', ['u32']), 'Microseconds': ('void', ['ptr']),
+        'InsTime': ('i16', ['ptr']), 'RmvTime': ('i16', ['ptr']), 'PrimeTime': ('i16', ['ptr', 'i32']),
+        'SndDoImmediate': ('i16', ['ptr', 'ptr']), 'SndDoCommand': ('i16', ['ptr', 'ptr', 'i16']),
+        'SndNewChannel': ('i16', ['ptr', 'i16', 'i32', 'ptr']), 'SndDisposeChannel': ('i16', ['ptr', 'i16']),
+        'Gestalt': ('i16', ['u32', 'ptr']), 'DTInstall': ('i16', ['ptr']),
+        'NewTimerUPP': ('ptr', ['ptr']), 'NewSndCallBackUPP': ('ptr', ['ptr']),
+        'NewDeferredTaskUPP': ('ptr', ['ptr']), 'NumToString': ('void', ['i32', 'ptr']),
+        'GetResource': ('ptr', ['u32', 'i16']), 'DetachResource': ('void', ['ptr']),
         'DisposeHandle': ('void', ['ptr']), 'SetHandleSize': ('void', ['ptr', 'i32']),
         'GetHandleSize': ('i32', ['ptr']), 'HLock': ('void', ['ptr']),
         'HUnlock': ('void', ['ptr']), 'MemError': ('i16', []),
@@ -266,15 +307,15 @@ class Lifter(object):
         'sprintf': ('i32', ['ptr', 'ptr']),
     }
 
-    def __init__(self, binary, name, verbose=False):
+    def __init__(self, binary, name, verbose=False, unit=None):
         self.bin = binary
         self.name = name
         self.verbose = verbose
-        self.unit, self.func = binary.unit_of(name)
+        self.unit, self.func = binary.unit_of(name, unit)
         if self.func is None:
             raise KeyError(name)
         self.em = CEmitter(self.unit)
-        self.start, self.end = binary.extent(name)
+        self.start, self.end = binary.extent(name, self.func.addr)
         self.warnings = []
         self.temps = {}            # frame offset -> (name, ty)
         self.materialise = set()   # temp offsets that must be real variables
@@ -833,6 +874,14 @@ class Lifter(object):
         if sec is not None and sec[1] in ('__literal8', '__literal4'):
             v = self.bin.f64(addr) if size == 8 else self.bin.f32(addr)
             return const(v, 'f64' if size == 8 else 'f32')
+        if sec is not None and sec[1] in ('__cstring', '__const') and size is not None \
+                and not terms and kind != 'f':
+            raw = self.bin.read(addr, size)
+            v = int.from_bytes(raw, 'big', signed=(tg[0] == 'i'))
+            e = const(v, tg)
+            if sec[1] == '__cstring':
+                e.extra = 'bytes:' + raw.decode('mac-roman', 'replace')
+            return e
         if sec is not None and sec[1] == '__cstring':
             return Expr('str', 'ptr', val=self.bin.cstring(addr))
         nm = self.bin.by_addr.get(addr)
@@ -1716,18 +1765,37 @@ class Lifter(object):
 
     # -- calls -------------------------------------------------------------------
 
+    def _indirect_proto(self, fn):
+        """(return tag, arg tags) of a call through fn, by its typedef name."""
+        t = fn.extra if isinstance(fn.extra, Type) else fn.ty
+        while isinstance(t, Type):
+            for nm in (t.tname, t.name):
+                if nm in INDIRECT_PROTOS:
+                    return INDIRECT_PROTOS[nm]
+            if t.kind not in ('typedef', 'const', 'volatile'):
+                break
+            t = t.target
+        return None
+
     def _call(self, i, indirect=False):
         if indirect:
-            self.warn('indirect call at %x' % i.addr)
-            e = Expr('call', 'i32', name='(*fn)', val=[])
-            self._statement(i.addr, Stmt('call', rhs=e))
-            return
-        target = i.target
-        name = self.bin.func_by_addr.get(target) or self.bin.stubs.get(target)
-        if name is None:
-            self.warn('call to unknown %x at %x' % (target, i.addr))
-            name = 'sub_%x' % target
-        rett, ptypes = self._prototype(name, target)
+            fn = self.ctr
+            proto = self._indirect_proto(fn) if fn is not None else None
+            if proto is None:
+                self.warn('indirect call at %x' % i.addr)
+                e = Expr('call', 'i32', name='(*fn)', val=[])
+                self._statement(i.addr, Stmt('call', rhs=e))
+                return
+            rett, ptypes = proto
+            name = None
+            target = None
+        else:
+            target = i.target
+            name = self.bin.func_by_addr.get(target) or self.bin.stubs.get(target)
+            if name is None:
+                self.warn('call to unknown %x at %x' % (target, i.addr))
+                name = 'sub_%x' % target
+            rett, ptypes = self._prototype(name, target)
         args = []
         gpr, fpr = 3, 1
         for pt in ptypes:
@@ -1752,7 +1820,7 @@ class Lifter(object):
             self._emit(paddr, Stmt('call', rhs=pcall))
         rtag = tag_of(rett) if isinstance(rett, Type) else rett
         call = Expr('call', rett if (isinstance(rett, Type) and not is_scalar(rtag)) else rtag,
-                    name=name, val=args)
+                    name=name, val=args, a=None if not indirect else fn)
         if rtag == 'void':
             self._statement(i.addr, Stmt('call', rhs=call))
             return
@@ -1895,6 +1963,9 @@ class Renderer(object):
             if is_float(e.ty) or isinstance(e.val, float):
                 return float_literal(e.val, e.ty if is_float(e.ty) else 'f64'), POSTFIX
             v = e.val
+            if isinstance(e.extra, str) and e.extra.startswith('bytes:'):
+                txt = e.extra[6:].replace('*/', '* /')
+                return '0x%x /* %r */' % (v & ((1 << (SIZE[e.ty] * 8)) - 1), txt), POSTFIX
             if v < 0:
                 return int_literal(v), UNARY
             return int_literal(v), POSTFIX
@@ -1961,6 +2032,8 @@ class Renderer(object):
             return '%s %s %s' % (l, e.op, r), p
         if k == 'call':
             args = ', '.join(self.render(a, 0) for a in (e.val or []))
+            if e.name is None:
+                return '%s(%s)' % (self.render(e.a, POSTFIX), args), POSTFIX
             return '%s(%s)' % (e.name, args), POSTFIX
         return '/* ? %s */' % k, POSTFIX
 
@@ -2706,6 +2779,14 @@ class Structurer(object):
         if inl is not None:
             out.extend(inl)
             return k + 1
+        if ti is not None and lo <= ti <= k and ti > lo and self._loop_closed(ti, k):
+            start = self._find_label_node(out, tgt)
+            if start is not None:
+                body = out[start:] + [Node('goto', target=tgt)]     # renders as continue
+                del out[start:]
+                after = self._addr(k + 1) if k + 1 < hi else exit_addr
+                out.append(Node('loop', body=body, cont=tgt, brk=after))
+                return k + 1
         out.append(Node('goto', target=tgt))
         self.used_labels.add(tgt)
         return k + 1
@@ -2729,9 +2810,68 @@ class Structurer(object):
                     return True
         return False
 
+    def _succs(self, k):
+        b = self.blocks[k]
+        t = b.term
+        out = []
+        if t is None:
+            if k + 1 < len(self.blocks):
+                out.append(k + 1)
+        elif t[0] == 'goto':
+            out.append(self.index.get(t[1]))
+        elif t[0] == 'if':
+            out.append(self.index.get(t[2]))
+            if k + 1 < len(self.blocks):
+                out.append(k + 1)
+        elif t[0] == 'ifret':
+            if k + 1 < len(self.blocks):
+                out.append(k + 1)
+        elif t[0] == 'switch':
+            out.extend(self.index.get(x) for x in t[2])
+        return [x for x in out if x is not None]
+
+    def _natural_loop(self, head, tail):
+        """Block indices of the loop through head: what head reaches that
+        reaches head again (the strongly connected component)."""
+        fwd = {head}
+        stack = [head]
+        while stack:
+            for n in self._succs(stack.pop()):
+                if n not in fwd:
+                    fwd.add(n)
+                    stack.append(n)
+        bwd = {head}
+        stack = [head]
+        while stack:
+            for p in self.blocks[stack.pop()].preds:
+                pi = self.index.get(p)
+                if pi is not None and pi not in bwd:
+                    bwd.add(pi)
+                    stack.append(pi)
+        loop = fwd & bwd
+        loop.add(tail)
+        return loop
+
+    def _loop_closed(self, head, tail):
+        """Is the loop tail -> head entered only through its head, once?"""
+        loop = self._natural_loop(head, tail)
+        entries = set()
+        for j in loop:
+            for p in self.blocks[j].preds:
+                pi = self.index.get(p)
+                if pi is None or pi in loop:
+                    continue
+                if j != head:
+                    return False
+                entries.add(pi)
+        return len(entries) == 1
+
     def _find_label_node(self, nodes, addr):
         for k, n in enumerate(nodes):
             if n.kind == 'label' and n.addr == addr:
+                return k
+            # a loop already built on that block: its node stands for the label
+            if n.kind in ('while', 'while_split', 'dowhile') and n.addr == addr:
                 return k
         return None
 
@@ -2974,8 +3114,8 @@ class Writer(object):
             self.out.append('%s}' % pad)
 
 
-def lift_function(binary, name, lines=True, verbose=False):
-    L = Lifter(binary, name, verbose)
+def lift_function(binary, name, lines=True, verbose=False, unit=None):
+    L = Lifter(binary, name, verbose, unit)
     stmts = L.lift()
     S = Structurer(L, stmts)
     nodes = S.structure()
@@ -2991,14 +3131,16 @@ def main():
     lines = '--no-lines' not in a
     a = [x for x in a if x != '--no-lines']
     b = Binary()
+    unit = None
     if a[0] == '--unit':
         u = [x for x in b.units if x.base == a[1]][0]
         names = [f.name for f in u.funcs]
+        unit = u.base
     else:
         names = a
     for n in names:
         try:
-            text, warns = lift_function(b, n, lines)
+            text, warns = lift_function(b, n, lines, unit=unit)
         except Exception as e:
             import traceback
             traceback.print_exc()

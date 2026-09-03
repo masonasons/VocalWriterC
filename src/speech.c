@@ -2722,7 +2722,7 @@ void DiffNoiseWave(formantVarPtr zz)
     zz->BandNoisePtr[4095] = tempD;
 }
 
-/* Macintosh.c:4583  (0x9e7a8) */
+/* Speech.c:4583  (0x9e7a8) */
 static Ptr GetThePtr(Ptr basePtr, int32_t *tblPtr)
 {
     Ptr dataPtr;

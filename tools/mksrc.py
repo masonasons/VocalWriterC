@@ -166,6 +166,7 @@ def reverb():
         ln = ln.replace('static void ClearReverbHistory', 'void ClearReverbHistory')
         ln = ln.replace('static void DeleteReverbModules', 'void DeleteReverbModules')
         ln = ln.replace('static void XferReverbHold', 'void XferReverbHold')
+        ln = ln.replace('static void Reverb_Mux16', 'void Reverb_Mux16')
         out.append(ln)
     path = os.path.join(ROOT, 'src', 'reverb.c')
     with open(path, 'w', newline='\n') as fh:
