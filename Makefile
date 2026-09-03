@@ -55,8 +55,11 @@ build/pic:
 build/pic/%.o: src/%.c include/vw_engine.h include/vw_types.h include/vocalwriter.h | build/pic
 	$(CC) $(CFLAGS) $(INCLUDE) -fPIC -c $< -o $@
 
+# -static-libgcc is GCC's, and only matters on Windows; Clang refuses it.
+SHAREDFLAGS := $(shell $(CC) -Werror -static-libgcc -E - </dev/null >/dev/null 2>&1 && echo -static-libgcc)
+
 $(SHARED): $(PICOBJS)
-	$(CC) $(CFLAGS) -shared $(PICOBJS) -o $@ -lm -static-libgcc
+	$(CC) $(CFLAGS) -shared $(PICOBJS) -o $@ -lm $(SHAREDFLAGS)
 
 build/layout.o: test/layout.c test/layout.h | build
 	$(CC) $(CFLAGS) $(INCLUDE) -c test/layout.c -o $@

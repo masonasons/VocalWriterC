@@ -14,19 +14,26 @@ CFLAGS="-O2 -g -std=c11 -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter
  -Wno-unused-but-set-variable -Wno-sign-compare -Wno-unused-function \
  -ffp-contract=off -fwrapv -fno-fast-math -Iinclude -Itest"
 
-# -fexcess-precision=standard is GCC's, and older Clang does not know
-# it. What it prevents -- x87's 80-bit registers carrying extra
-# precision between operations -- happens on 32-bit x86 and nowhere
-# else, so where the compiler will not take the flag there is nothing
-# for it to prevent. Probe rather than assume.
+# Flags the compiler may not have. Clang takes -fexcess-precision=standard
+# only from 17 on and merely warns about it before that, so the probe compiles
+# with -Werror; and it has no -static-libgcc at all, which is a GCC thing and
+# only matters on Windows, where it keeps the runtime out of the DLL's way.
 PROBE="${TMPDIR:-/tmp}/vw_flag_probe"
 echo "int main(void){return 0;}" > "$PROBE.c"
-if $CC -fexcess-precision=standard -c "$PROBE.c" -o "$PROBE.o" 2>/dev/null; then
+have_flag() {
+    $CC -Werror "$1" -c "$PROBE.c" -o "$PROBE.o" 2>/dev/null
+}
+if have_flag -fexcess-precision=standard; then
     CFLAGS="$CFLAGS -fexcess-precision=standard"
 else
     echo "note: $CC does not take -fexcess-precision=standard; going without it"
 fi
+SHAREDFLAGS=""
+if have_flag -static-libgcc; then
+    SHAREDFLAGS="-static-libgcc"
+fi
 rm -f "$PROBE.c" "$PROBE.o"
+
 mkdir -p build
 OBJS=""
 for f in speech tables music reverb macshim orthtophon parsephons convertsmf expandtracks \
@@ -54,7 +61,7 @@ for f in speech tables music reverb macshim orthtophon parsephons convertsmf exp
     $CC $CFLAGS -fPIC -c src/$f.c -o build/pic/$f.o
     PICOBJS="$PICOBJS build/pic/$f.o"
 done
-$CC $CFLAGS -shared $PICOBJS -o $SO -lm -static-libgcc
+$CC $CFLAGS -shared $PICOBJS -o $SO -lm $SHAREDFLAGS
 echo built $SO
 $CC $CFLAGS -c test/layout.c -o build/layout.o
 $CC $CFLAGS test/harness.c build/libvocalwriter.a build/layout.o -o build/harness -lm
