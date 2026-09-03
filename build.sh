@@ -16,13 +16,32 @@ CFLAGS="-O2 -g -std=c11 -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter
 mkdir -p build
 OBJS=""
 for f in speech tables music reverb macshim orthtophon parsephons convertsmf expandtracks \
-         synthapi synthglue bank song vw_api; do
+         synthapi synthglue bank song vw_api editor; do
     $CC $CFLAGS -c src/$f.c -o build/$f.o
     OBJS="$OBJS build/$f.o"
 done
 rm -f build/libvocalwriter.a
 $AR rcs build/libvocalwriter.a $OBJS
 $CC $CFLAGS src/vw.c build/libvocalwriter.a -o build/vw -lm
+
+# The shared library, for callers that are not C: the note editor in the
+# VocalWriter repository loads it and drives the engine through vw_editor.h.
+# -fPIC is needed for the objects it is made of, so they are built again;
+# the GCC runtime goes inside, so the library stands on its own.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) SO=build/libvocalwriter.dll ;;
+    Darwin) SO=build/libvocalwriter.dylib ;;
+    *) SO=build/libvocalwriter.so ;;
+esac
+PICOBJS=""
+mkdir -p build/pic
+for f in speech tables music reverb macshim orthtophon parsephons convertsmf expandtracks \
+         synthapi synthglue bank song vw_api editor; do
+    $CC $CFLAGS -fPIC -c src/$f.c -o build/pic/$f.o
+    PICOBJS="$PICOBJS build/pic/$f.o"
+done
+$CC $CFLAGS -shared $PICOBJS -o $SO -lm -static-libgcc
+echo built $SO
 $CC $CFLAGS -c test/layout.c -o build/layout.o
 $CC $CFLAGS test/harness.c build/libvocalwriter.a build/layout.o -o build/harness -lm
 echo built build/vw and build/harness

@@ -19,11 +19,22 @@ CFLAGS  ?= -O2 -g -std=c11 -Wall -Wextra -Wno-unused-variable -Wno-unused-parame
 INCLUDE  = -Iinclude -Itest
 
 UNITS = speech tables music reverb macshim orthtophon parsephons convertsmf expandtracks \
-        synthapi synthglue bank song vw_api
+        synthapi synthglue bank song vw_api editor
 OBJS  = $(addprefix build/,$(addsuffix .o,$(UNITS)))
+PICOBJS = $(addprefix build/pic/,$(addsuffix .o,$(UNITS)))
 LIB   = build/libvocalwriter.a
 
-all: build/vw build/harness
+# The shared library the note editor in the VocalWriter repository loads.
+UNAME := $(shell uname -s)
+ifneq (,$(findstring MINGW,$(UNAME))$(findstring MSYS,$(UNAME)))
+SHARED = build/libvocalwriter.dll
+else ifeq ($(UNAME),Darwin)
+SHARED = build/libvocalwriter.dylib
+else
+SHARED = build/libvocalwriter.so
+endif
+
+all: build/vw build/harness $(SHARED)
 
 build:
 	mkdir -p build
@@ -37,6 +48,15 @@ $(LIB): $(OBJS)
 
 build/vw: src/vw.c $(LIB)
 	$(CC) $(CFLAGS) $(INCLUDE) src/vw.c $(LIB) -o $@ -lm
+
+build/pic:
+	mkdir -p build/pic
+
+build/pic/%.o: src/%.c include/vw_engine.h include/vw_types.h include/vocalwriter.h | build/pic
+	$(CC) $(CFLAGS) $(INCLUDE) -fPIC -c $< -o $@
+
+$(SHARED): $(PICOBJS)
+	$(CC) $(CFLAGS) -shared $(PICOBJS) -o $@ -lm -static-libgcc
 
 build/layout.o: test/layout.c test/layout.h | build
 	$(CC) $(CFLAGS) $(INCLUDE) -c test/layout.c -o $@
