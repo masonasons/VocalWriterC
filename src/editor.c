@@ -345,6 +345,17 @@ void vw_ed_set_speech_volume(vw_editor *e, float v)
     e->zz->speechVolume = v;
 }
 
+void vw_ed_oscillator(vw_editor *e, int32_t *phase, int32_t *len,
+                      int32_t *pitch)
+{
+    if (phase != NULL)
+        *phase = e->zz->sGlottPhaseIncA;
+    if (len != NULL)
+        *len = e->zz->sGlottWaveLenA >> 12;     /* it is kept in 12-bit fixed */
+    if (pitch != NULL)
+        *pitch = e->zz->s_pitchA;
+}
+
 /* -- the reverb -------------------------------------------------------------- */
 
 int vw_ed_reverb(vw_editor *e, float room, float wet)

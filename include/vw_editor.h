@@ -119,6 +119,16 @@ void vw_ed_set_emph(vw_editor *e, float a, float b);
 float vw_ed_speech_volume(vw_editor *e);
 void vw_ed_set_speech_volume(vw_editor *e, float v);
 
+/* -- what the oscillator is doing ------------------------------------------ */
+
+/* For working out whether a wavetable voice is playing its sample at the rate
+   it should. `phase` is the increment per output sample in 12-bit fixed point,
+   so phase/4096 is the playback rate: 4096 plays the sample at the speed it
+   was recorded. `len` is the wave's length in samples and `pitch` the tuning
+   the voice asked for. Diagnostics; nothing needs them to sing. */
+void vw_ed_oscillator(vw_editor *e, int32_t *phase, int32_t *len,
+                      int32_t *pitch);
+
 /* -- the reverb ----------------------------------------------------------- */
 
 /* The application's own reverb, set the way its own dialog sets it: `room`
