@@ -14,6 +14,8 @@
  *   --no-reverb       leave the reverb out
  *   --room N --wet N  the reverb amounts, percent (the song's own otherwise)
  *   --max-seconds S   stop after S seconds
+ *   --solo 1,4        play only these tracks (numbers as `vw info` lists them)
+ *   --mute 2,3        silence these tracks
  *   --bpm N           tempo for `sing` (default 120)
  *   --voice N         voice for `sing`: the program number (default 0)
  *   --velocity N      note velocity for `sing` (default 114)
@@ -156,6 +158,36 @@ static int load_song(vw_song *s, const char *path)
     return 0;
 }
 
+/* --solo 1,4 plays only those tracks; --mute 2 silences those */
+static void apply_track_choice(vw_song *s, const char *solo, const char *mute)
+{
+    int i;
+    if (solo != NULL) {
+        for (i = 0; i < 32; i++)
+            s->trackPlay[i] = 0;
+        while (*solo) {
+            int n = atoi(solo);
+            if (n >= 0 && n < 32)
+                s->trackPlay[n] = 1;
+            while (*solo && *solo != ',')
+                solo++;
+            if (*solo == ',')
+                solo++;
+        }
+    }
+    if (mute != NULL) {
+        while (*mute) {
+            int n = atoi(mute);
+            if (n >= 0 && n < 32)
+                s->trackPlay[n] = 0;
+            while (*mute && *mute != ',')
+                mute++;
+            if (*mute == ',')
+                mute++;
+        }
+    }
+}
+
 static int cmd_render(int argc, char **argv)
 {
     vw_engine e;
@@ -168,6 +200,7 @@ static int cmd_render(int argc, char **argv)
     }
     if (load_song(&s, argv[2]))
         return 1;
+    apply_track_choice(&s, arg_str(argc, argv, "--solo"), arg_str(argc, argv, "--mute"));
     if (open_engine(&e, 1, 0))
         return 1;
     options(argc, argv, &opt);

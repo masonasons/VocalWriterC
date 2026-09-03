@@ -1,41 +1,64 @@
 # VocalWriter in C. Build with GCC or Clang:
 #
-#   make            the library objects and the test harness
-#   make check      the differential test against the interpreter
+#   make            the library, the vw command line tool, the test harness
+#   make check      the differential tests against the interpreter (needs
+#                   the VocalWriter repository beside this one, with its assets)
 #
 # The flags matter: -ffp-contract=off keeps a*b+c as two roundings, the way
 # the PowerPC code did it (it never used fmadd), and -fwrapv gives the
 # wrap-around integer arithmetic the original relied on.
+#
+# build.sh does the same without make (on msys, whose make is unhappy).
 
 CC      ?= gcc
-CFLAGS  ?= -O2 -std=c11 -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter \
-           -Wno-unused-but-set-variable -Wno-sign-compare \
+AR      ?= ar
+PYTHON  ?= python
+CFLAGS  ?= -O2 -g -std=c11 -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter \
+           -Wno-unused-but-set-variable -Wno-sign-compare -Wno-unused-function \
            -ffp-contract=off -fwrapv -fexcess-precision=standard -fno-fast-math
-INCLUDE  = -Iinclude
+INCLUDE  = -Iinclude -Itest
 
-OBJS = build/speech.o build/tables.o build/music.o
+UNITS = speech tables music reverb macshim orthtophon parsephons convertsmf expandtracks \
+        synthapi synthglue bank song vw_api
+OBJS  = $(addprefix build/,$(addsuffix .o,$(UNITS)))
+LIB   = build/libvocalwriter.a
 
-all: build/harness
+all: build/vw build/harness
 
 build:
 	mkdir -p build
 
-build/%.o: src/%.c include/vw_engine.h include/vw_types.h | build
+build/%.o: src/%.c include/vw_engine.h include/vw_types.h include/vocalwriter.h | build
 	$(CC) $(CFLAGS) $(INCLUDE) -c $< -o $@
 
-build/harness: test/harness.c $(OBJS)
-	$(CC) $(CFLAGS) $(INCLUDE) test/harness.c $(OBJS) -o $@ -lm
+$(LIB): $(OBJS)
+	rm -f $@
+	$(AR) rcs $@ $(OBJS)
 
-src/speech.c: tools/lift.py tools/mksrc.py
-	python tools/mksrc.py
+build/vw: src/vw.c $(LIB)
+	$(CC) $(CFLAGS) $(INCLUDE) src/vw.c $(LIB) -o $@ -lm
 
-include/vw_types.h: tools/genheader.py tools/stabs.py
-	python tools/genheader.py > include/vw_types.h
+build/layout.o: test/layout.c test/layout.h | build
+	$(CC) $(CFLAGS) $(INCLUDE) -c test/layout.c -o $@
 
-check: build/harness
-	python test/difftest.py
+build/harness: test/harness.c $(LIB) build/layout.o
+	$(CC) $(CFLAGS) $(INCLUDE) test/harness.c $(LIB) build/layout.o -o $@ -lm
+
+# the generated sources, from the original binary's debug records
+generate:
+	$(PYTHON) tools/genheader.py > include/vw_types.h
+	$(PYTHON) tools/genheader.py --layout > test/layout.c
+	$(PYTHON) tools/mksrc.py
+	$(PYTHON) tools/mkfront.py
+	$(PYTHON) tools/mkseq.py
+
+check: build/harness build/vw
+	$(PYTHON) test/difftest.py
+	$(PYTHON) test/fronttest.py
+	$(PYTHON) test/seqtest.py
+	$(PYTHON) test/exporttest.py
 
 clean:
 	rm -rf build
 
-.PHONY: all check clean
+.PHONY: all generate check clean
