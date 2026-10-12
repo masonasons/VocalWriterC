@@ -217,8 +217,8 @@ void vw_ed_volume(vw_editor *e, int32_t value)
 void vw_ed_level(vw_editor *e, float level)
 {
     /* Speech_TrackLevel with the rounding taken out: it is amt/100 into the
-       same field, and a voice built on a wavetable can be thirty times too
-       loud for full scale, which 1 of 100 does not divide finely enough. */
+       same field, and fitting a voice to full scale or to a track's volume
+       wants a finer division than 1 of 100. */
     e->zz->trackLevel = level;
     vw_SetTotalVolume(e->zz);
 }

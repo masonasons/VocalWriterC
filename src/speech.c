@@ -491,11 +491,11 @@ void SayFrame(formantVarPtr zz)
                     if (zz->sGlottDirA != 0) {
                         waveAddr = &zz->sGlottWaveAddrA[zz->sGlottAccumulator >> 12];
                         sample_L = *waveAddr;
-                        sample_L += ((zz->sGlottAccumulator & 4095) * (waveAddr[1] - sample_L)) >> 12;
+                        sample_L += ((int32_t)(zz->sGlottAccumulator & 4095) * (waveAddr[1] - sample_L)) >> 12;
                     } else {
                         waveAddr = &zz->sGlottWaveAddrA[(zz->sGlottWaveLenA - zz->sGlottAccumulator) >> 12];
                         sample_L = *waveAddr;
-                        sample_L += ((zz->sGlottAccumulator & 4095) * (waveAddr[-1] - sample_L)) >> 12;
+                        sample_L += ((int32_t)(zz->sGlottAccumulator & 4095) * (waveAddr[-1] - sample_L)) >> 12;
                     }
                     sourceC = (float)sample_L;
                     sourceC *= zz->sGlottVolumeA;
