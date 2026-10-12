@@ -78,6 +78,14 @@ def main():
         # the last call left). It is unused; return the waveform it built.
         if ln.strip() == 'return /* r3 */ 0;':
             ln = ln.replace('/* r3 */ 0', 'zz->voiceWaveform')
+        # The sample glottis interpolates between two samples and shifts the
+        # product right arithmetically: lift.py writes srawi as a bare >> and
+        # puts a cast in front of srwi. But sGlottAccumulator is unsigned, so
+        # written out plainly C makes the product unsigned and the shift
+        # logical, and every falling step of the wave comes out about 2^20
+        # too high. The fraction is taken as signed, as PlayFrame16's is.
+        ln = ln.replace('((zz->sGlottAccumulator & 4095) * (waveAddr[',
+                        '((int32_t)(zz->sGlottAccumulator & 4095) * (waveAddr[')
         # track which function we are in, to place the stack-slot model
         if ln and not ln.startswith((' ', '}', '/', '#')) and '(' in ln:
             func = ln.split('(')[0].split()[-1].lstrip('*')

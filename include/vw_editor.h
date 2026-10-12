@@ -68,11 +68,11 @@ void vw_ed_defaults(vw_editor *e, int glide);
    branch audible at all. */
 void vw_ed_volume(vw_editor *e, int32_t value);
 
-/* The track level, as a factor rather than as the control's 0 to 100. The
-   voices built on wavetables come out of the engine as much as fifty times
-   over full scale, and 1 of 100 is not a fine enough division to bring them
-   back; this is the same field Speech_TrackLevel writes, without the
-   rounding, and the noise gain is recomputed with it as the engine does. */
+/* The track level, as a factor rather than as the control's 0 to 100. A
+   caller that fits a voice to full scale, or scales it by a track's volume,
+   wants finer steps than 1 of 100; this is the same field Speech_TrackLevel
+   writes, without the rounding, and the noise gain is recomputed with it as
+   the engine does. */
 void vw_ed_level(vw_editor *e, float level);
 
 /* One of the engine's voice controls by its own name: Speech_Color,
