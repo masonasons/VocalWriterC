@@ -1926,8 +1926,10 @@ static void LookUp(synthVarsPtr xx, FETokenPtr wToken)
     wToken->tokStr[0] -= 4;
 }
 
-/* OrthToPhon.c:2485  (0xa5c04) */
-int16_t OrthToPhon(synthVarsPtr xx, ConvertTextRecPtr tRec, int16_t dictFile)
+/* OrthToPhon.c:2485  (0xa5c04)
+   OrthToPhon, the port also telling whether the dictionary or the
+   morphology knew the word, rather than the letter-to-sound rules. */
+int16_t OrthToPhonKnown(synthVarsPtr xx, ConvertTextRecPtr tRec, int16_t dictFile, int16_t *known)
 {
     int16_t err;
     int16_t i;
@@ -1952,6 +1954,8 @@ int16_t OrthToPhon(synthVarsPtr xx, ConvertTextRecPtr tRec, int16_t dictFile)
     }
     wToken.tokStr[0] = tRec->textLen_Input;
     LookUp(xx, &wToken);
+    if (known != NULL)
+        *known = wToken.inDict || wToken.inMorph;
     xx->destParseLen = wToken.phonStr[0] << 2;
     bSize = xx->destParseLen << 1;
     xx->phon_Buf_1 = (int16_t *)NewPtr(bSize);
@@ -2000,4 +2004,9 @@ int16_t OrthToPhon(synthVarsPtr xx, ConvertTextRecPtr tRec, int16_t dictFile)
     DisposePtr(xx->phon_Ctrl_Buf_2);
     DisposePtr(xx->srcParseBuf);
     return error;
+}
+
+int16_t OrthToPhon(synthVarsPtr xx, ConvertTextRecPtr tRec, int16_t dictFile)
+{
+    return OrthToPhonKnown(xx, tRec, dictFile, NULL);
 }

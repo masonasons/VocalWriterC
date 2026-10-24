@@ -159,9 +159,11 @@ int vw_ed_lexicon(vw_editor *e, const unsigned char *data, size_t len);
 
 /* One word through the application's own text to phonemes: the dictionary
    search, the suffix morphology and the letter-to-sound rules. `out` is
-   10 x 9 bytes, a Pascal string of phoneme codes per syllable. Returns the
-   number of syllables, 0 for nothing usable, or -1 without a dictionary. */
-int vw_ed_word(vw_editor *e, const char *text, unsigned char *out);
+   10 x 9 bytes, a Pascal string of phoneme codes per syllable. `known`, if
+   not NULL, is set to 1 if the dictionary or the morphology knew the word,
+   0 if the letter-to-sound rules guessed it. Returns the number of
+   syllables, 0 for nothing usable, or -1 without a dictionary. */
+int vw_ed_word(vw_editor *e, const char *text, unsigned char *out, int *known);
 
 /* The application's own two-letter name for a phoneme code, or NULL. There
    are 57 of them, the last being silence. */

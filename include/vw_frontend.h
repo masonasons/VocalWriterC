@@ -58,6 +58,7 @@ int16_t FindVowel(synthVarsPtr xx, unsigned char **p_i_ptr);
 int16_t search_special(synthVarsPtr xx, unsigned char **p_i_ptr, unsigned char *sprule);
 unsigned char *dorule(synthVarsPtr xx, unsigned char *i_ptr, unsigned char *r_ptr);
 int16_t OrthToPhon(synthVarsPtr xx, ConvertTextRecPtr tRec, int16_t dictFile);
+int16_t OrthToPhonKnown(synthVarsPtr xx, ConvertTextRecPtr tRec, int16_t dictFile, int16_t *known);
 
 /* ParsePhons.c */
 int16_t GetPhon_FE(synthVarsPtr xx, int16_t index);
