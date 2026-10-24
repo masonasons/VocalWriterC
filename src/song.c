@@ -340,6 +340,16 @@ static int make_speech(vw_engine *e, vw_song *s, int i)
     return VW_OK;
 }
 
+/* the tempo of track 0's first tempo event, as FindStartTempo finds it */
+static int16_t start_tempo(vw_song *s)
+{
+    const unsigned char *p = s->image + track(s, 0)->trackData;
+    for (; (be32(p) >> 8) != 0xffffff; p += 12)
+        if (p[4] == 4)
+            return (int16_t)((p[5] << 8) + p[6]);
+    return 120;
+}
+
 int vw_render(vw_engine *e, vw_song *s, const vw_render_options *opt,
               vw_sink sink, void *user)
 {
@@ -402,6 +412,8 @@ int vw_render(vw_engine *e, vw_song *s, const vw_render_options *opt,
 
     /* a fresh start of the oscillators and buffers, as at launch */
     Synth_StartMusic(svv);
+    /* the song's start tempo, which PlayToDisk sets before StartCurSeq */
+    Synth_SetTempo(svv, start_tempo(s));
 
     memset(&pr, 0, sizeof pr);
     pr.PbufStart = (Ptr)s->image;

@@ -52,12 +52,13 @@ static inline int32_t vw_bits_i(float f)
 #define BITS_I(f) vw_bits_i(f)
 
 /* The value SayFrame finds in its uninitialised `cycleIndex` on the first
- * sample of a frame: the stack pointer a callee of e_Fill_Next_Frame saved
- * at that address. On Mac OS X the main thread's stack sits just under
- * 0xC0000000, so as a signed 32-bit word it is negative, and the breath
- * gate `breathCycle > cycleIndex` passes on that first sample. Define it as a
- * positive value to model a thread stack in low memory (the Sound Manager's
- * callback thread), or the interpreter's. */
+ * sample of a frame: the stack pointer a callee of e_Fill_Next_Frame, or of
+ * the sequencer between two frames, saved at that address. On Mac OS X the
+ * main thread's stack sits just under 0xC0000000, so as a signed 32-bit
+ * word it is negative, and the breath gate `breathCycle > cycleIndex`
+ * passes on that first sample. Define it as a positive value to model a
+ * thread stack in low memory (the Sound Manager's callback thread), or the
+ * interpreter's. */
 #ifndef VW_STACK_ADDRESS
 #define VW_STACK_ADDRESS ((int32_t)0xBFFFEFB0)
 #endif

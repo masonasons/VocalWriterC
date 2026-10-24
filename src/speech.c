@@ -18,9 +18,11 @@
  * `cycleIndex` on the first sample of every frame before it has assigned it,
  * so what it gets is whatever the previous call at that stack depth left
  * there: the saved stack pointer stored by StartNewPhon,
- * Init_Ctrls_for_New_Phon or SaveFrame (all called just before it, all with
- * frames that land their back chain on that word), or its own final value
- * from the previous frame when none of them ran. See VW_STACK_ADDRESS. */
+ * Init_Ctrls_for_New_Phon or SaveFrame (all called just before it), or by
+ * AllocateVoice, StartRelease or NewTempo_Speech (which the sequencer's
+ * Update reaches between two frames), all with frames that land their back
+ * chain on that word; or its own final value from the previous frame when
+ * none of them ran. See VW_STACK_ADDRESS. */
 int32_t vw_stack_slot_c0 = VW_STACK_ADDRESS;
 
 /* Speech.c:62  (0x9376c) */
@@ -3161,6 +3163,7 @@ int16_t State_Speech(synthVarsPtr xx, int16_t track)
 /* Speech.c:5160  (0xa04d8) */
 void NewTempo_Speech(synthVarsPtr xx, int16_t track)
 {
+    vw_stack_slot_c0 = VW_STACK_ADDRESS;   /* see STACK_SLOT_WRITERS */
 }
 
 /* Speech.c:5165  (0xa0510) */

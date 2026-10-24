@@ -34,21 +34,25 @@ PROLOGUE = '''/* Speech.c -- VocalWriter 2.0.1's Resonant Articulatory Synthesis
  * `cycleIndex` on the first sample of every frame before it has assigned it,
  * so what it gets is whatever the previous call at that stack depth left
  * there: the saved stack pointer stored by StartNewPhon,
- * Init_Ctrls_for_New_Phon or SaveFrame (all called just before it, all with
- * frames that land their back chain on that word), or its own final value
- * from the previous frame when none of them ran. See VW_STACK_ADDRESS. */
+ * Init_Ctrls_for_New_Phon or SaveFrame (all called just before it), or by
+ * AllocateVoice, StartRelease or NewTempo_Speech (which the sequencer's
+ * Update reaches between two frames), all with frames that land their back
+ * chain on that word; or its own final value from the previous frame when
+ * none of them ran. See VW_STACK_ADDRESS. */
 int32_t vw_stack_slot_c0 = VW_STACK_ADDRESS;
 
 '''
 
 
-#: Functions whose stack frame, when called from e_Fill_Next_Frame, puts their
-#: saved stack pointer exactly where SayFrame's `cycleIndex` lives. SayFrame
+#: Functions whose stack frame, when called from e_Fill_Next_Frame (or, for
+#: NewTempo_Speech, from Update through UpdateTimer and SetSpeechTempo), puts
+#: their saved stack pointer exactly where SayFrame's `cycleIndex` lives; the
+#: sequencer's AllocateVoice and StartRelease are in tools/mkseq.py. SayFrame
 #: tests cycleIndex before assigning it on the first sample of every frame,
 #: so the original read that saved pointer -- negative, on a Macintosh whose
 #: stack sits under 0xC0000000. Modelled with one shared variable, which is
 #: also faithful: the original's slot was one place on one stack.
-STACK_SLOT_WRITERS = ('StartNewPhon', 'Init_Ctrls_for_New_Phon', 'SaveFrame')
+STACK_SLOT_WRITERS = ('StartNewPhon', 'Init_Ctrls_for_New_Phon', 'SaveFrame', 'NewTempo_Speech')
 
 DECL_WORDS = ('int8_t', 'uint8_t', 'int16_t', 'uint16_t', 'int32_t', 'uint32_t',
               'float', 'double', 'rShort', 'rLong', 'rUSC', 'rUSShort', 'mFloat',
@@ -93,6 +97,9 @@ def main():
         elif ln == '}':
             if func == 'SayFrame':
                 out.append('    vw_stack_slot_c0 = cycleIndex;')
+            elif func in STACK_SLOT_WRITERS and first_stmt:
+                # an empty body: the frame alone writes the slot
+                out.append('    vw_stack_slot_c0 = VW_STACK_ADDRESS;   /* see STACK_SLOT_WRITERS */')
             func = None
         elif func in STACK_SLOT_WRITERS and ln.startswith('    ') and not ln.startswith('     ') \
                 and first_stmt and not ln.strip().endswith(';') is False and \
