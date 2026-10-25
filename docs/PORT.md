@@ -40,10 +40,12 @@ Rules that keep the arithmetic the original's:
 - One stack slot is modelled: `SayFrame` reads its local `cycleIndex` on
   the first sample of every frame before assigning it. On a Macintosh that
   slot held the stack pointer saved by whichever of `StartNewPhon`,
-  `Init_Ctrls_for_New_Phon` or `SaveFrame` ran last at that depth, a
-  negative number under Mac OS X's main-thread stack, and the branch it
-  takes matters to the breath. `VW_STACK_ADDRESS` and `vw_stack_slot_c0`
-  model that (see the top of `src/speech.c`).
+  `Init_Ctrls_for_New_Phon` or `SaveFrame` -- or, between two frames, the
+  sequencer's `AllocateVoice`, `StartRelease` (from `VoiceRelease`) or
+  `NewTempo_Speech` -- ran last at that depth, a negative number under
+  Mac OS X's main-thread stack, and the branch it takes matters to the
+  breath. `VW_STACK_ADDRESS` and `vw_stack_slot_c0` model that (see the top
+  of `src/speech.c`).
 
 ## What replaces Mac OS
 

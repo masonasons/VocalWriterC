@@ -152,6 +152,21 @@ def main():
     def music_fix(text):
         # the file-static entry point the driver calls directly
         text = text.replace('static void UpdateTimer(', 'void UpdateTimer(')
+        # SayFrame's stack slot (see src/speech.c): Update reaches AllocateVoice
+        # through VoiceInit, and StartRelease through VoiceRelease, at the depth
+        # where their frames land the saved stack pointer on it
+        text, n = re.subn(r'(\nint16_t AllocateVoice\(synthVarsPtr xx\)\n\{\n(?:    .*;\n)*\n)',
+                          r'\1    vw_stack_slot_c0 = VW_STACK_ADDRESS;   /* see src/speech.c */\n', text)
+        assert n == 1
+        release = ('            if (curVCB->envState <= 0) {\n'
+                   '                VCB_Release(xx, curVCB);\n')
+        assert text.count(release) == 1
+        text = text.replace(release, release.replace(
+            '                VCB_Release',
+            '                if (xx->chSusTbl[curVCB->vcbCH] == 0) {\n'
+            '                    vw_stack_slot_c0 = VW_STACK_ADDRESS;   /* StartRelease, see src/speech.c */\n'
+            '                }\n'
+            '                VCB_Release'))
         # a pointer difference between two byte pointers of different signedness
         return text.replace('sp->RbufLen = xx->rec_BufPtr - sp->RbufStart;',
                             'sp->RbufLen = (int32_t)(xx->rec_BufPtr - (unsigned char *)sp->RbufStart);')

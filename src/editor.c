@@ -400,13 +400,15 @@ int vw_ed_lexicon(vw_editor *e, const unsigned char *data, size_t len)
     return e->lexRef ? 0 : -1;
 }
 
-int vw_ed_word(vw_editor *e, const char *text, unsigned char *out)
+int vw_ed_word(vw_editor *e, const char *text, unsigned char *out, int *known)
 {
     ConvertTextRec tRec;
     size_t n = 0, k;
-    int16_t err;
+    int16_t err, inLexicon = 0;
     int i;
 
+    if (known != NULL)
+        *known = 0;
     if (e->lexRef == 0)
         return -1;
     memset(&tRec, 0, sizeof tRec);
@@ -421,11 +423,13 @@ int vw_ed_word(vw_editor *e, const char *text, unsigned char *out)
        freed memory back until the call is over rather than letting the
        allocator reuse it underneath. */
     vw_shim_defer_free = 1;
-    err = OrthToPhon(e->xx, &tRec, e->lexRef);
+    err = OrthToPhonKnown(e->xx, &tRec, e->lexRef, &inLexicon);
     vw_shim_flush_deferred();
     vw_shim_defer_free = 0;
     if (err != 0)
         return 0;
+    if (known != NULL)
+        *known = inLexicon;
     for (i = 0; i < tRec.syllables_Result && i < 10; i++) {
         int len = (int)tRec.phon_Result[i].syllLen;
         if (len > 8)

@@ -84,10 +84,14 @@ int vw_bank_load(vw_bank *bank, const unsigned char *mwav, size_t mwav_len,
     }
     bank->waveTable = bank->mwav + table;
     bank->waveCount = (int)((entry - table) / 24);
-    /* the samples: 16-bit words from there to the end */
-    if (bank->pcmType == 1)
+    /* the samples: 16-bit words from there to the end, and back to the end
+       of the table, which a wave running backwards from its start reads */
+    if (bank->pcmType == 1) {
         for (k = first_sample; k + 1 < mwav_len; k += 2)
             swap16(bank->mwav + k);
+        for (k = first_sample; k >= entry + 2; k -= 2)
+            swap16(bank->mwav + k - 2);
+    }
 
     /* the instrument definitions */
     inst_off = be32(mdef + 0xc);

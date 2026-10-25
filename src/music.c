@@ -648,6 +648,7 @@ int16_t AllocateVoice(synthVarsPtr xx)
     int16_t priorityNum;
     int16_t freeSlot;
 
+    vw_stack_slot_c0 = VW_STACK_ADDRESS;   /* see src/speech.c */
     min_r = 65;
     min_s = min_r;
     freeSlot = 0;
@@ -714,6 +715,9 @@ void VoiceRelease(synthVarsPtr xx)
         if (curVCB->priority > 0 && curVCB->note == xx->Vkey && curVCB->chan == xx->Vchan) {
             curVCB->noteDur = 0.0f;
             if (curVCB->envState <= 0) {
+                if (xx->chSusTbl[curVCB->vcbCH] == 0) {
+                    vw_stack_slot_c0 = VW_STACK_ADDRESS;   /* StartRelease, see src/speech.c */
+                }
                 VCB_Release(xx, curVCB);
             }
         }
